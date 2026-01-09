@@ -1,0 +1,26 @@
+[project]
+name = "ttydal"
+version = "0.1.0"
+description = "Tidal in your terminal!"
+readme = "README.md"
+authors = [
+    { name = "Bouteiller [a2n] Alan", email = "a2n.dev@pm.me" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "appdirs>=1.4.4",
+    "mpv>=1.0.8",
+    "platformdirs>=4.5.1",
+    "pydantic>=2.12.5",
+    "rich>=14.2.0",
+    "textual>=7.0.1",
+    "textual-dev>=1.8.0",
+    "tidalapi>=0.8.10",
+]
+
+[project.scripts]
+ttydal = "ttydal:main"
+
+[build-system]
+requires = ["uv_build>=0.9.22,<0.10.0"]
+build-backend = "uv_build"
