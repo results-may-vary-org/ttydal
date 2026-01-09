@@ -14,7 +14,8 @@ class TracksList(Container):
     """Tracks list widget for browsing and selecting tracks."""
 
     BINDINGS = [
-        Binding("space", "play_selected_track", "Play Track", show=True),
+        Binding("space", "play_selected_track", "Play Track", show=True, priority=True),
+        Binding("r", "refresh_tracks", "Refresh", show=True),
     ]
 
     DEFAULT_CSS = """
@@ -59,6 +60,8 @@ class TracksList(Container):
         self.tidal = TidalClient()
         self.tracks = []
         self.current_album_name = ""
+        self.current_item_id = None
+        self.current_item_type = None
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
@@ -78,6 +81,8 @@ class TracksList(Container):
         list_view.clear()
         self.tracks = []
         self.current_album_name = item_name
+        self.current_item_id = item_id
+        self.current_item_type = item_type
 
         # Update header
         header = self.query_one(Label)
@@ -142,6 +147,20 @@ class TracksList(Container):
             )
         else:
             log("  - No track selected")
+
+    def action_refresh_tracks(self) -> None:
+        """Refresh the current tracks list (r key action)."""
+        log("TracksList: Refresh tracks action triggered")
+        if self.current_item_id and self.current_item_type:
+            log(f"  - Reloading tracks for {self.current_album_name}")
+            self.load_tracks(
+                self.current_item_id,
+                self.current_album_name,
+                self.current_item_type
+            )
+            self.app.notify("Tracks refreshed!", severity="information")
+        else:
+            log("  - No tracks loaded yet, nothing to refresh")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle track selection (Enter key or double-click).

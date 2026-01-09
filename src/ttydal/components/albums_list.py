@@ -1,6 +1,7 @@
 """Albums list component for browsing user albums and playlists."""
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
@@ -11,6 +12,10 @@ from ttydal.logger import log
 
 class AlbumsList(Container):
     """Albums list widget for browsing user albums."""
+
+    BINDINGS = [
+        Binding("r", "refresh_albums", "Refresh", show=True),
+    ]
 
     DEFAULT_CSS = """
     AlbumsList {
@@ -62,8 +67,33 @@ class AlbumsList(Container):
         yield ListView(id="albums-listview")
 
     def on_mount(self) -> None:
-        """Load albums when mounted."""
+        """Load albums when mounted and auto-select My Tracks."""
+        # Delay loading to ensure session is ready
+        log("AlbumsList.on_mount() called - scheduling delayed load")
+        self.set_timer(0.5, self.delayed_load)
+
+    def delayed_load(self) -> None:
+        """Load albums after a delay to ensure session is ready."""
+        log("AlbumsList.delayed_load() called")
         self.load_albums()
+        # Auto-select "My Tracks" after loading
+        self.set_timer(0.1, self.auto_select_my_tracks)
+
+    def auto_select_my_tracks(self) -> None:
+        """Auto-select My Tracks on startup."""
+        log("AlbumsList: Auto-selecting My Tracks")
+        list_view = self.query_one("#albums-listview", ListView)
+        if len(self.albums) > 0:
+            list_view.index = 0
+            # Trigger selection event
+            self.post_message(
+                self.AlbumSelected(
+                    self.albums[0]["id"],
+                    self.albums[0]["name"],
+                    self.albums[0]["type"]
+                )
+            )
+            log("  - My Tracks auto-selected")
 
     def load_albums(self) -> None:
         """Load user albums and playlists from Tidal."""
@@ -109,6 +139,13 @@ class AlbumsList(Container):
             })
         log(f"  - Loaded {len(user_albums)} albums")
         log(f"  - Total items in list: {len(self.albums)}")
+
+    def action_refresh_albums(self) -> None:
+        """Refresh the albums and playlists list (r key action)."""
+        log("AlbumsList: Refresh albums action triggered")
+        self.load_albums()
+        # Show notification
+        self.app.notify("Albums & Playlists refreshed!", severity="information")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle album or playlist selection.

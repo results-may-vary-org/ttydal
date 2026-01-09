@@ -236,6 +236,17 @@ class TtydalApp(App):
     def action_toggle_play(self) -> None:
         """Toggle play/pause."""
         if self.current_page == "player":
+            # Check if tracks list is focused - if so, let it handle space
+            try:
+                from ttydal.components.tracks_list import TracksList
+                focused = self.focused
+                # If a ListView inside TracksList has focus, let TracksList handle it
+                if focused and focused.id == "tracks-listview":
+                    log("Space pressed: TracksList focused, delegating to play_selected_track")
+                    return
+            except Exception as e:
+                log(f"Error checking focus: {e}")
+
             player_page = self.query_one(PlayerPage)
             player_page.toggle_playback()
 

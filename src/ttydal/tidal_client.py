@@ -104,16 +104,25 @@ class TidalClient:
         Returns:
             List of user albums
         """
-        log("TidalClient.get_user_albums() called")
+        log("="*60)
+        log("API CALL: get_user_albums()")
+        log("  Request: session.user.albums()")
         if not self.is_logged_in():
-            log("  - Not logged in, returning empty list")
+            log("  Response: Not logged in, returning []")
+            log("="*60)
             return []
         try:
             albums = list(self.session.user.albums())
-            log(f"  - Found {len(albums)} albums")
+            log(f"  Response: Success - {len(albums)} albums")
+            for idx, album in enumerate(albums[:5]):  # Log first 5
+                log(f"    [{idx}] {album.name} (ID: {album.id}, tracks: {getattr(album, 'num_tracks', '?')})")
+            if len(albums) > 5:
+                log(f"    ... and {len(albums) - 5} more")
+            log("="*60)
             return albums
         except Exception as e:
-            log(f"  - Error getting albums: {e}")
+            log(f"  Response: ERROR - {e}")
+            log("="*60)
             return []
 
     def get_user_playlists(self) -> list:
@@ -122,16 +131,25 @@ class TidalClient:
         Returns:
             List of user playlists
         """
-        log("TidalClient.get_user_playlists() called")
+        log("="*60)
+        log("API CALL: get_user_playlists()")
+        log("  Request: session.user.playlists()")
         if not self.is_logged_in():
-            log("  - Not logged in, returning empty list")
+            log("  Response: Not logged in, returning []")
+            log("="*60)
             return []
         try:
             playlists = list(self.session.user.playlists())
-            log(f"  - Found {len(playlists)} playlists")
+            log(f"  Response: Success - {len(playlists)} playlists")
+            for idx, pl in enumerate(playlists[:5]):  # Log first 5
+                log(f"    [{idx}] {pl.name} (ID: {pl.id}, tracks: {getattr(pl, 'num_tracks', '?')})")
+            if len(playlists) > 5:
+                log(f"    ... and {len(playlists) - 5} more")
+            log("="*60)
             return playlists
         except Exception as e:
-            log(f"  - Error getting playlists: {e}")
+            log(f"  Response: ERROR - {e}")
+            log("="*60)
             return []
 
     def get_user_favorites(self) -> list:
@@ -140,9 +158,26 @@ class TidalClient:
         Returns:
             List of favorite tracks
         """
+        log("="*60)
+        log("API CALL: get_user_favorites()")
+        log("  Request: session.user.favorites.tracks()")
         if not self.is_logged_in():
+            log("  Response: Not logged in, returning []")
+            log("="*60)
             return []
-        return list(self.session.user.favorites.tracks())
+        try:
+            tracks = list(self.session.user.favorites.tracks())
+            log(f"  Response: Success - {len(tracks)} favorite tracks")
+            for idx, track in enumerate(tracks[:3]):  # Log first 3
+                log(f"    [{idx}] {track.name} by {track.artist.name if hasattr(track, 'artist') else 'Unknown'}")
+            if len(tracks) > 3:
+                log(f"    ... and {len(tracks) - 3} more")
+            log("="*60)
+            return tracks
+        except Exception as e:
+            log(f"  Response: ERROR - {e}")
+            log("="*60)
+            return []
 
     def get_album_tracks(self, album_id: str) -> list:
         """Get ALL tracks from an album.
@@ -153,18 +188,28 @@ class TidalClient:
         Returns:
             List of all tracks in the album
         """
-        log(f"TidalClient.get_album_tracks({album_id}) called")
+        log("="*60)
+        log(f"API CALL: get_album_tracks(album_id={album_id})")
+        log(f"  Request: session.album({album_id}).tracks()")
         if not self.is_logged_in():
-            log("  - Not logged in, returning empty list")
+            log("  Response: Not logged in, returning []")
+            log("="*60)
             return []
         try:
             album = self.session.album(album_id)
+            log(f"  - Album fetched: {album.name if hasattr(album, 'name') else 'Unknown'}")
             # Get all tracks - tidalapi should handle pagination
             tracks = list(album.tracks())
-            log(f"  - Loaded {len(tracks)} tracks from album")
+            log(f"  Response: Success - {len(tracks)} tracks from album")
+            for idx, track in enumerate(tracks[:3]):  # Log first 3
+                log(f"    [{idx}] {track.name} by {track.artist.name if hasattr(track, 'artist') else 'Unknown'}")
+            if len(tracks) > 3:
+                log(f"    ... and {len(tracks) - 3} more")
+            log("="*60)
             return tracks
         except Exception as e:
-            log(f"  - Error getting album tracks: {e}")
+            log(f"  Response: ERROR - {e}")
+            log("="*60)
             return []
 
     def get_playlist_tracks(self, playlist_id: str) -> list:
@@ -176,18 +221,30 @@ class TidalClient:
         Returns:
             List of all tracks in the playlist
         """
-        log(f"TidalClient.get_playlist_tracks({playlist_id}) called")
+        log("="*60)
+        log(f"API CALL: get_playlist_tracks(playlist_id={playlist_id})")
+        log(f"  Request: session.playlist({playlist_id}).tracks()")
         if not self.is_logged_in():
-            log("  - Not logged in, returning empty list")
+            log("  Response: Not logged in, returning []")
+            log("="*60)
             return []
         try:
             playlist = self.session.playlist(playlist_id)
-            # Get all tracks - tidalapi should handle pagination
+            log(f"  - Playlist fetched: {playlist.name if hasattr(playlist, 'name') else 'Unknown'}")
+            # Get ALL tracks - tidalapi handles pagination automatically
             tracks = list(playlist.tracks())
-            log(f"  - Loaded {len(tracks)} tracks from playlist")
+            log(f"  Response: Success - {len(tracks)} tracks from playlist")
+            for idx, track in enumerate(tracks[:3]):  # Log first 3
+                log(f"    [{idx}] {track.name} by {track.artist.name if hasattr(track, 'artist') else 'Unknown'}")
+            if len(tracks) > 3:
+                log(f"    ... and {len(tracks) - 3} more")
+            log("="*60)
             return tracks
         except Exception as e:
-            log(f"  - Error getting playlist tracks: {e}")
+            log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
+            log("="*60)
             return []
 
     def get_track_url(self, track_id: str, quality: str = "high") -> str | None:
