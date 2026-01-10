@@ -62,11 +62,57 @@ class TracksList(Container):
         self.current_album_name = ""
         self.current_item_id = None
         self.current_item_type = None
+        self.current_playing_index = None
+        self._track_end_callback_registered = False
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
         yield Label("Tracks")
         yield ListView(id="tracks-listview")
+
+    def on_mount(self) -> None:
+        """Initialize when mounted."""
+        # Register callback for track end events
+        if not self._track_end_callback_registered:
+            from ttydal.player import Player
+            player = Player()
+            player.register_callback("on_track_end", self._on_track_end)
+            self._track_end_callback_registered = True
+            log("TracksList: Registered track end callback")
+
+    def _on_track_end(self) -> None:
+        """Handle track end event - play next track in list."""
+        log("TracksList._on_track_end() called")
+
+        if self.current_playing_index is None:
+            log("  - No current playing index, cannot auto-play next")
+            return
+
+        if not self.tracks:
+            log("  - No tracks loaded, cannot auto-play next")
+            return
+
+        # Calculate next track index (loop back to 0 if at end)
+        next_index = (self.current_playing_index + 1) % len(self.tracks)
+        log(f"  - Current index: {self.current_playing_index}, Next index: {next_index} (total tracks: {len(self.tracks)})")
+
+        next_track = self.tracks[next_index]
+        log(f"  - Auto-playing next track: {next_track['name']}")
+
+        # Update the current playing index
+        self.current_playing_index = next_index
+
+        # Update ListView selection to highlight the next track
+        try:
+            list_view = self.query_one("#tracks-listview", ListView)
+            list_view.index = next_index
+        except Exception as e:
+            log(f"  - Error updating ListView selection: {e}")
+
+        # Play the next track
+        self.post_message(
+            self.TrackSelected(next_track["id"], next_track)
+        )
 
     def load_tracks(self, item_id: str, item_name: str, item_type: str = "album") -> None:
         """Load ALL tracks for a specific album or playlist.
@@ -190,6 +236,11 @@ class TracksList(Container):
                 log(f"  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track")
             else:
                 log(f"  - No track playing, starting playback")
+
+            # Update current playing index
+            self.current_playing_index = index
+            log(f"  - Updated current playing index to: {index}")
+
             self.post_message(
                 self.TrackSelected(selected_track["id"], selected_track)
             )
@@ -221,6 +272,11 @@ class TracksList(Container):
                 track = self.tracks[index]
                 log(f"TracksList: Track selected via Enter/click - {track['name']}")
                 log(f"  - Playing/restarting track")
+
+                # Update current playing index for auto-play tracking
+                self.current_playing_index = index
+                log(f"  - Updated current playing index to: {index}")
+
                 self.post_message(
                     self.TrackSelected(track["id"], track)
                 )
