@@ -173,6 +173,9 @@ class TracksList(Container):
             artist = track.artist.name if hasattr(track, 'artist') else "Unknown"
             duration = self._format_duration(track.duration)
 
+            # Get album name from track or use the current item name
+            album_name = track.album.name if hasattr(track, 'album') and hasattr(track.album, 'name') else item_name
+
             list_view.append(
                 ListItem(Label(f"{idx}. {track_name} - {artist} ({duration})"))
             )
@@ -180,6 +183,7 @@ class TracksList(Container):
                 "id": str(track.id),
                 "name": track_name,
                 "artist": artist,
+                "album": album_name,
                 "duration": track.duration
             })
 
