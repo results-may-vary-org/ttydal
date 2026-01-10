@@ -108,7 +108,7 @@ class ConfigPage(Container):
         theme_value = self.config.theme if self.config.theme in valid_theme_ids else "textual-dark"
 
         # Valid quality options
-        valid_qualities = ["high", "low"]
+        valid_qualities = ["max", "high", "low"]
         quality_value = self.config.quality if self.config.quality in valid_qualities else "high"
 
         # Auto-play setting
@@ -128,8 +128,9 @@ class ConfigPage(Container):
                 yield Label("Audio Quality:")
                 yield Select(
                     options=[
-                        ("High (Lossless)", "high"),
-                        ("Low (320k)", "low")
+                        ("Max (Hi-Res Lossless - up to 24bit/192kHz)", "max"),
+                        ("High (Lossless - 16bit/44.1kHz)", "high"),
+                        ("Low (320kbps AAC)", "low")
                     ],
                     value=quality_value,
                     id="quality-select"

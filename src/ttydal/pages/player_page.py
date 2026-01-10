@@ -71,15 +71,24 @@ class PlayerPage(Container):
         log(f"  - Track ID: {event.track_id}")
         log(f"  - Artist: {event.track_info.get('artist', 'Unknown')}")
 
-        log("  - Requesting track URL from Tidal...")
-        track_url = self.tidal.get_track_url(
+        log("  - Requesting track URL and metadata from Tidal...")
+        track_url, stream_metadata = self.tidal.get_track_url(
             event.track_id,
             self.config.quality
         )
 
-        if track_url:
+        if track_url and stream_metadata:
             log(f"  - Got track URL, calling player.play()")
-            self.player.play(track_url, event.track_info)
+
+            # Add stream metadata to track info
+            track_info_with_metadata = event.track_info.copy()
+            track_info_with_metadata['stream_metadata'] = stream_metadata
+
+            self.player.play(track_url, track_info_with_metadata)
+
+            # Update player bar with actual stream quality
+            player_bar = self.query_one(PlayerBar)
+            player_bar.update_stream_quality(stream_metadata)
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)
@@ -89,7 +98,7 @@ class PlayerPage(Container):
                 albums_list.set_playing_item(tracks_list.current_item_id)
             log("=" * 80)
         else:
-            log(f"  - Failed to get track URL")
+            log(f"  - Failed to get track URL or metadata")
             log("=" * 80)
 
     def focus_albums(self) -> None:

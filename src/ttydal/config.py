@@ -88,8 +88,8 @@ class ConfigManager:
     @quality.setter
     def quality(self, value: str) -> None:
         """Set the audio quality setting."""
-        if value not in ("high", "low"):
-            raise ValueError("Quality must be 'high' or 'low'")
+        if value not in ("max", "high", "low"):
+            raise ValueError("Quality must be 'max', 'high', or 'low'")
         self.set("quality", value)
 
     @property

@@ -255,15 +255,16 @@ class TidalClient:
             log("="*60)
             return []
 
-    def get_track_url(self, track_id: str, quality: str = "high") -> str | None:
-        """Get playback URL for a track.
+    def get_track_url(self, track_id: str, quality: str = "high") -> tuple[str | None, dict | None]:
+        """Get playback URL and stream metadata for a track.
 
         Args:
             track_id: The track ID
             quality: Quality setting ('high' or 'low')
 
         Returns:
-            Track URL or None if not available
+            Tuple of (track_url, stream_metadata) or (None, None) if not available
+            stream_metadata contains: audio_quality, bit_depth, sample_rate, audio_mode
         """
         log("="*60)
         log(f"API CALL: get_track_url(track_id={track_id}, quality={quality})")
@@ -271,7 +272,7 @@ class TidalClient:
         if not self.is_logged_in():
             log("  Response: Not logged in, returning None")
             log("="*60)
-            return None
+            return None, None
 
         try:
             log(f"  - Fetching track object for ID {track_id}")
@@ -279,23 +280,48 @@ class TidalClient:
             log(f"  - Track fetched: {track.name if hasattr(track, 'name') else 'Unknown'}")
 
             # Set quality on the session config
-            if quality == "high":
+            if quality == "max":
+                self.session.config.quality = tidalapi.Quality.hi_res_lossless
+                log(f"  - Session quality set to: HI_RES_LOSSLESS (up to 24bit/192kHz)")
+            elif quality == "high":
                 self.session.config.quality = tidalapi.Quality.high_lossless
-                log(f"  - Session quality set to: HIGH_LOSSLESS")
-            else:
+                log(f"  - Session quality set to: HIGH_LOSSLESS (16bit/44.1kHz)")
+            else:  # low
                 self.session.config.quality = tidalapi.Quality.low_320k
-                log(f"  - Session quality set to: LOW_320K")
+                log(f"  - Session quality set to: LOW_320K (320kbps AAC)")
 
-            # Get stream URL (no quality parameter needed - uses session config)
-            log(f"  - Requesting stream URL...")
-            stream = track.get_url()
-            log(f"  Response: Success - URL obtained")
-            log(f"  - URL: {stream[:50]}..." if stream and len(stream) > 50 else f"  - URL: {stream}")
+            # Get stream - this returns a Stream object with metadata
+            log(f"  - Requesting stream metadata...")
+            stream = track.get_stream()
+
+            if not stream:
+                log(f"  Response: ERROR - No stream available")
+                log("="*60)
+                return None, None
+
+            # Extract stream metadata
+            stream_metadata = {
+                "audio_quality": getattr(stream, 'audio_quality', 'Unknown'),
+                "bit_depth": getattr(stream, 'bit_depth', None),
+                "sample_rate": getattr(stream, 'sample_rate', None),
+                "audio_mode": getattr(stream, 'audio_mode', 'Unknown')
+            }
+
+            # Get the actual playback URL from track (not stream)
+            log(f"  - Requesting playback URL...")
+            stream_url = track.get_url()
+
+            log(f"  Response: Success - Stream obtained")
+            log(f"  - Audio quality: {stream_metadata['audio_quality']}")
+            log(f"  - Bit depth: {stream_metadata['bit_depth']} bit" if stream_metadata['bit_depth'] else f"  - Bit depth: N/A")
+            log(f"  - Sample rate: {stream_metadata['sample_rate']} Hz" if stream_metadata['sample_rate'] else f"  - Sample rate: N/A")
+            log(f"  - Audio mode: {stream_metadata['audio_mode']}")
+            log(f"  - URL: {stream_url[:50]}..." if stream_url and len(stream_url) > 50 else f"  - URL: {stream_url}")
             log("="*60)
-            return stream
+            return stream_url, stream_metadata
         except Exception as e:
             log(f"  Response: ERROR - {e}")
             import traceback
             log(traceback.format_exc())
             log("="*60)
-            return None
+            return None, None

@@ -42,6 +42,7 @@ class PlayerBar(Container):
         super().__init__()
         self.player = Player()
         self.quality = "N/A"
+        self.stream_metadata = None
 
     def compose(self) -> ComposeResult:
         """Compose the player bar UI."""
@@ -66,6 +67,40 @@ class PlayerBar(Container):
         secs = int(seconds) % 60
         return f"{minutes}:{secs:02d}"
 
+    def _format_quality(self) -> str:
+        """Format quality information from stream metadata.
+
+        Returns:
+            Formatted quality string
+        """
+        if not self.stream_metadata:
+            return self.quality.upper() if self.quality else "N/A"
+
+        # Extract metadata
+        audio_quality = self.stream_metadata.get('audio_quality', 'Unknown')
+        bit_depth = self.stream_metadata.get('bit_depth')
+        sample_rate = self.stream_metadata.get('sample_rate')
+
+        # Build quality string
+        parts = []
+
+        # Add audio quality name
+        if audio_quality != 'Unknown':
+            parts.append(audio_quality)
+
+        # Add bit depth and sample rate if available
+        if bit_depth and sample_rate:
+            # Convert sample rate to kHz
+            sample_rate_khz = sample_rate / 1000
+            parts.append(f"{bit_depth}bit/{sample_rate_khz:.1f}kHz")
+        elif bit_depth:
+            parts.append(f"{bit_depth}bit")
+        elif sample_rate:
+            sample_rate_khz = sample_rate / 1000
+            parts.append(f"{sample_rate_khz:.1f}kHz")
+
+        return " ".join(parts) if parts else "N/A"
+
     def update_display(self) -> None:
         """Update the player bar display."""
         track = self.player.get_current_track()
@@ -86,15 +121,15 @@ class PlayerBar(Container):
 
             if duration > 0:
                 progress_bar.update(total=duration, progress=time_pos)
-                # Show time and quality
+                # Show time and quality with detailed stream info
                 time_str = f"{self._format_time(time_pos)} / {self._format_time(duration)}"
-                quality_str = self.quality if hasattr(self, 'quality') else "N/A"
-                time_label.update(f"{time_str}  |  Quality: {quality_str.upper()}")
+                quality_str = self._format_quality()
+                time_label.update(f"{time_str}  |  {quality_str}")
         else:
             track_label.update("No track playing")
             progress_bar.update(total=100, progress=0)
-            quality_str = self.quality if hasattr(self, 'quality') else "N/A"
-            time_label.update(f"0:00 / 0:00  |  Quality: {quality_str.upper()}")
+            quality_str = self._format_quality()
+            time_label.update(f"0:00 / 0:00  |  {quality_str}")
 
     def update_quality_display(self, quality: str) -> None:
         """Update quality display.
@@ -103,3 +138,11 @@ class PlayerBar(Container):
             quality: Current quality setting ('high' or 'low')
         """
         self.quality = quality
+
+    def update_stream_quality(self, stream_metadata: dict) -> None:
+        """Update with actual stream quality metadata.
+
+        Args:
+            stream_metadata: Dict with audio_quality, bit_depth, sample_rate, audio_mode
+        """
+        self.stream_metadata = stream_metadata
