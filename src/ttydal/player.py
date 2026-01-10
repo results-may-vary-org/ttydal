@@ -27,6 +27,7 @@ class Player:
         log("  - MPV will be lazy-loaded on first use")
         self.mpv = None
         self._current_track = None
+        self._manual_track_change = False  # Flag to prevent auto-play during manual track changes
         self._callbacks: dict[str, list[Callable]] = {
             "on_track_end": [],
             "on_time_pos_change": []
@@ -54,8 +55,24 @@ class Player:
         @self.mpv.event_callback('end-file')
         def end_file_callback(event):
             """Handle track end event."""
+            log("+=" * 80)
+            log("MPV EVENT: end-file (player.py)")
+            log(f"  - Event data: {event}")
+            log(f"  - Event reason: {event.get('event', {}).get('reason', 'unknown')}") # fixme seem to crash here because log is never send
+            log(f"  - Manual track change flag: {self._manual_track_change}")
+            log(f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
+
+            # Skip auto-play callbacks if this is a manual track change
+            if self._manual_track_change:
+                log("  - Skipping auto-play callbacks (manual track change)")
+                self._manual_track_change = False  # Reset flag
+                log("-=" * 80)
+                return
+
+            log(f"  - Calling {len(self._callbacks['on_track_end'])} track end callbacks")
             for callback in self._callbacks["on_track_end"]:
                 callback()
+            log("*=" * 80)
 
     def play(self, url: str, track_info: dict | None = None) -> None:
         """Play a track from URL.
@@ -64,24 +81,35 @@ class Player:
             url: The audio URL to play
             track_info: Optional track metadata
         """
+        log("=" * 80)
         log("Player.play() called")
         if track_info:
-            log(f"  - Track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
+            log(f"  - New track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
+            log(f"  - Track ID: {track_info.get('id', 'Unknown')}")
         log(f"  - URL: {url[:50]}..." if len(url) > 50 else f"  - URL: {url}")
+
+        # Set flag to prevent auto-play when MPV stops the current track
+        was_playing = self._current_track is not None
+        if was_playing:
+            log(f"  - Stopping current track: {self._current_track.get('name', 'Unknown')}")
+            log("  - Setting manual_track_change flag to TRUE (will skip auto-play)")
+            self._manual_track_change = True
 
         self._ensure_mpv()
         self._current_track = track_info
 
         try:
-            log("  - Starting playback via MPV...")
+            log("  - Calling mpv.play()...")
             self.mpv.play(url)
             # Ensure playback starts (unpause if needed)
             self.mpv.pause = False
             log("  - Playback started successfully")
+            log("=" * 80)
         except Exception as e:
             log(f"  - ERROR starting playback: {e}")
             import traceback
             log(traceback.format_exc())
+            log("=" * 80)
 
     def pause(self) -> None:
         """Pause playback."""
@@ -103,16 +131,20 @@ class Player:
 
     def toggle_pause(self) -> None:
         """Toggle pause/play."""
+        log("=" * 80)
         log("Player.toggle_pause() called")
+        log(f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
 
         # Only toggle if MPV is initialized (meaning a track has been loaded)
         if self.mpv is None:
             log("  - MPV not initialized, no track to pause/play")
+            log("=" * 80)
             return
 
         # Check if there's actually something loaded
         if self.mpv.time_pos is None:
-            log("  - No track currently loaded")
+            log("  - No track currently loaded (time_pos is None)")
+            log("=" * 80)
             return
 
         current_state = self.mpv.pause
@@ -121,6 +153,7 @@ class Player:
         new_state = self.mpv.pause
         log(f"  - New pause state: {new_state}")
         log(f"  - Playback {'paused' if new_state else 'resumed'}")
+        log("=" * 80)
 
     def stop(self) -> None:
         """Stop playback."""

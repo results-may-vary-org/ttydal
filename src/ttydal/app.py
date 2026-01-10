@@ -363,7 +363,7 @@ class TtydalApp(App):
         try:
             # Cancel any running workers
             log("  - Cancelling workers...")
-            await self.workers.cancel_all()
+            self.workers.cancel_all()
             log("  - Workers cancelled")
         except Exception as e:
             log(f"  - Error cancelling workers: {e}")

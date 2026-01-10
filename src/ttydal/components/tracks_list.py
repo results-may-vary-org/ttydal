@@ -82,21 +82,29 @@ class TracksList(Container):
 
     def _on_track_end(self) -> None:
         """Handle track end event - play next track in list if auto-play is enabled."""
+        log("=" * 80)
         log("TracksList._on_track_end() called")
 
         # Check if auto-play is enabled
         from ttydal.config import ConfigManager
         config = ConfigManager()
+        log(f"  - Auto-play setting: {config.auto_play}")
         if not config.auto_play:
             log("  - Auto-play is disabled, not playing next track")
+            log("=" * 80)
             return
+
+        log(f"  - Current playing index: {self.current_playing_index}")
+        log(f"  - Tracks loaded: {len(self.tracks)}")
 
         if self.current_playing_index is None:
             log("  - No current playing index, cannot auto-play next")
+            log("=" * 80)
             return
 
         if not self.tracks:
             log("  - No tracks loaded, cannot auto-play next")
+            log("=" * 80)
             return
 
         # Calculate next track index (loop back to 0 if at end)
@@ -104,7 +112,7 @@ class TracksList(Container):
         log(f"  - Current index: {self.current_playing_index}, Next index: {next_index} (total tracks: {len(self.tracks)})")
 
         next_track = self.tracks[next_index]
-        log(f"  - Auto-playing next track: {next_track['name']}")
+        log(f"  - Auto-playing next track: {next_track['name']} (ID: {next_track['id']})")
 
         # Update the current playing index
         self.current_playing_index = next_index
@@ -113,16 +121,20 @@ class TracksList(Container):
         try:
             list_view = self.query_one("#tracks-listview", ListView)
             list_view.index = next_index
+            log(f"  - Updated ListView selection to index {next_index}")
         except Exception as e:
             log(f"  - Error updating ListView selection: {e}")
 
         # Update visual indicators
         self._update_track_indicators()
+        log("  - Updated visual indicators")
 
         # Play the next track
+        log("  - Posting TrackSelected message for next track")
         self.post_message(
             self.TrackSelected(next_track["id"], next_track)
         )
+        log("=" * 80)
 
     def load_tracks(self, item_id: str, item_name: str, item_type: str = "album") -> None:
         """Load ALL tracks for a specific album or playlist.
@@ -237,9 +249,13 @@ class TracksList(Container):
         - If selected track is same as playing track: toggle pause
         - If no track is playing: play selected track
         """
+        log("=" * 80)
         log("TracksList: Space key action triggered")
         list_view = self.query_one("#tracks-listview", ListView)
         index = list_view.index
+        log(f"  - ListView index: {index}")
+        log(f"  - Total tracks: {len(self.tracks)}")
+        log(f"  - Current playing index: {self.current_playing_index}")
 
         if index is None or index >= len(self.tracks):
             log("  - No track selected, toggling pause/play")
@@ -247,6 +263,7 @@ class TracksList(Container):
             from ttydal.player import Player
             player = Player()
             player.toggle_pause()
+            log("=" * 80)
             return
 
         selected_track = self.tracks[index]
@@ -256,11 +273,14 @@ class TracksList(Container):
         from ttydal.player import Player
         player = Player()
         current_track = player.get_current_track()
+        log(f"  - Current playing track: {current_track.get('name', 'Unknown') if current_track else 'None'}")
+        log(f"  - Current playing track ID: {current_track.get('id', 'Unknown') if current_track else 'None'}")
 
         if current_track and current_track.get('id') == selected_track['id']:
             # Same track is selected and playing, toggle pause
             log(f"  - Same track already playing, toggling pause")
             player.toggle_pause()
+            log("=" * 80)
         else:
             # Different track or no track playing, play the selected track
             if current_track:
@@ -274,10 +294,13 @@ class TracksList(Container):
 
             # Update visual indicators
             self._update_track_indicators()
+            log("  - Updated visual indicators")
 
+            log(f"  - Posting TrackSelected message")
             self.post_message(
                 self.TrackSelected(selected_track["id"], selected_track)
             )
+            log("=" * 80)
 
     def action_refresh_tracks(self) -> None:
         """Refresh the current tracks list (r key action)."""
@@ -301,11 +324,16 @@ class TracksList(Container):
             event: The selection event
         """
         if event.list_view.id == "tracks-listview":
+            log("=" * 80)
+            log("TracksList: Enter key/double-click action triggered")
             index = event.list_view.index
+            log(f"  - ListView index: {index}")
+            log(f"  - Total tracks: {len(self.tracks)}")
+            log(f"  - Current playing index: {self.current_playing_index}")
             if index is not None and index < len(self.tracks):
                 track = self.tracks[index]
-                log(f"TracksList: Track selected via Enter/click - {track['name']}")
-                log(f"  - Playing/restarting track")
+                log(f"  - Selected track: {track['name']} (ID: {track['id']})")
+                log(f"  - Playing/restarting track (Enter always plays)")
 
                 # Update current playing index for auto-play tracking
                 self.current_playing_index = index
@@ -313,7 +341,10 @@ class TracksList(Container):
 
                 # Update visual indicators
                 self._update_track_indicators()
+                log("  - Updated visual indicators")
 
+                log(f"  - Posting TrackSelected message")
                 self.post_message(
                     self.TrackSelected(track["id"], track)
                 )
+                log("=" * 80)

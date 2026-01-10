@@ -65,24 +65,32 @@ class PlayerPage(Container):
             event: Track selection event
         """
         from ttydal.logger import log
-        log(f"PlayerPage.on_tracks_list_track_selected() - Track: {event.track_info.get('name', 'Unknown')}")
+        log("=" * 80)
+        log("PlayerPage.on_tracks_list_track_selected() - Message received")
+        log(f"  - Track: {event.track_info.get('name', 'Unknown')}")
+        log(f"  - Track ID: {event.track_id}")
+        log(f"  - Artist: {event.track_info.get('artist', 'Unknown')}")
 
+        log("  - Requesting track URL from Tidal...")
         track_url = self.tidal.get_track_url(
             event.track_id,
             self.config.quality
         )
 
         if track_url:
-            log(f"  - Got track URL, starting playback")
+            log(f"  - Got track URL, calling player.play()")
             self.player.play(track_url, event.track_info)
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)
             if tracks_list.current_item_id:
+                log(f"  - Updating album indicator for item: {tracks_list.current_item_id}")
                 albums_list = self.query_one(AlbumsList)
                 albums_list.set_playing_item(tracks_list.current_item_id)
+            log("=" * 80)
         else:
             log(f"  - Failed to get track URL")
+            log("=" * 80)
 
     def focus_albums(self) -> None:
         """Focus the albums list."""
