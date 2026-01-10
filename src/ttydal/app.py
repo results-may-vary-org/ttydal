@@ -235,6 +235,7 @@ class TtydalApp(App):
 
     def action_toggle_play(self) -> None:
         """Toggle play/pause."""
+        log("TtydalApp.action_toggle_play() called")
         if self.current_page == "player":
             # Check if tracks list is focused - if so, let it handle space
             try:
@@ -242,13 +243,16 @@ class TtydalApp(App):
                 focused = self.focused
                 # If a ListView inside TracksList has focus, let TracksList handle it
                 if focused and focused.id == "tracks-listview":
-                    log("Space pressed: TracksList focused, delegating to play_selected_track")
+                    log("  - TracksList focused, delegating to play_selected_track")
                     return
             except Exception as e:
-                log(f"Error checking focus: {e}")
+                log(f"  - Error checking focus: {e}")
 
+            log("  - Calling player_page.toggle_playback()")
             player_page = self.query_one(PlayerPage)
             player_page.toggle_playback()
+        else:
+            log(f"  - Not on player page (current: {self.current_page})")
 
     def action_seek_backward(self) -> None:
         """Seek backward 10 seconds."""

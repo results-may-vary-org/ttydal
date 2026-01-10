@@ -64,13 +64,19 @@ class PlayerPage(Container):
         Args:
             event: Track selection event
         """
+        from ttydal.logger import log
+        log(f"PlayerPage.on_tracks_list_track_selected() - Track: {event.track_info.get('name', 'Unknown')}")
+
         track_url = self.tidal.get_track_url(
             event.track_id,
             self.config.quality
         )
 
         if track_url:
+            log(f"  - Got track URL, starting playback")
             self.player.play(track_url, event.track_info)
+        else:
+            log(f"  - Failed to get track URL")
 
     def focus_albums(self) -> None:
         """Focus the albums list."""
@@ -86,6 +92,8 @@ class PlayerPage(Container):
 
     def toggle_playback(self) -> None:
         """Toggle play/pause."""
+        from ttydal.logger import log
+        log("PlayerPage.toggle_playback() called")
         self.player.toggle_pause()
 
     def seek_backward(self) -> None:

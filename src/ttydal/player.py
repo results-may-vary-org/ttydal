@@ -39,7 +39,9 @@ class Player:
         if self.mpv is not None:
             return
 
+        log("  - Initializing MPV (lazy load)...")
         self.mpv = mpv.MPV(video=False, ytdl=False)
+        log("  - MPV initialized successfully")
 
         # Register MPV property observers
         @self.mpv.property_observer('time-pos')
@@ -62,24 +64,63 @@ class Player:
             url: The audio URL to play
             track_info: Optional track metadata
         """
+        log("Player.play() called")
+        if track_info:
+            log(f"  - Track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
+        log(f"  - URL: {url[:50]}..." if len(url) > 50 else f"  - URL: {url}")
+
         self._ensure_mpv()
         self._current_track = track_info
-        self.mpv.play(url)
+
+        try:
+            log("  - Starting playback via MPV...")
+            self.mpv.play(url)
+            # Ensure playback starts (unpause if needed)
+            self.mpv.pause = False
+            log("  - Playback started successfully")
+        except Exception as e:
+            log(f"  - ERROR starting playback: {e}")
+            import traceback
+            log(traceback.format_exc())
 
     def pause(self) -> None:
         """Pause playback."""
-        self._ensure_mpv()
+        log("Player.pause() called")
+        if self.mpv is None:
+            log("  - MPV not initialized")
+            return
         self.mpv.pause = True
+        log("  - Playback paused")
 
     def resume(self) -> None:
         """Resume playback."""
-        self._ensure_mpv()
+        log("Player.resume() called")
+        if self.mpv is None:
+            log("  - MPV not initialized")
+            return
         self.mpv.pause = False
+        log("  - Playback resumed")
 
     def toggle_pause(self) -> None:
         """Toggle pause/play."""
-        self._ensure_mpv()
-        self.mpv.pause = not self.mpv.pause
+        log("Player.toggle_pause() called")
+
+        # Only toggle if MPV is initialized (meaning a track has been loaded)
+        if self.mpv is None:
+            log("  - MPV not initialized, no track to pause/play")
+            return
+
+        # Check if there's actually something loaded
+        if self.mpv.time_pos is None:
+            log("  - No track currently loaded")
+            return
+
+        current_state = self.mpv.pause
+        log(f"  - Current pause state: {current_state}")
+        self.mpv.pause = not current_state
+        new_state = self.mpv.pause
+        log(f"  - New pause state: {new_state}")
+        log(f"  - Playback {'paused' if new_state else 'resumed'}")
 
     def stop(self) -> None:
         """Stop playback."""

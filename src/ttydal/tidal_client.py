@@ -99,21 +99,21 @@ class TidalClient:
         return False
 
     def get_user_albums(self) -> list:
-        """Get user's albums.
+        """Get user's favorite albums.
 
         Returns:
-            List of user albums
+            List of user favorite albums
         """
         log("="*60)
         log("API CALL: get_user_albums()")
-        log("  Request: session.user.albums()")
+        log("  Request: session.user.favorites.albums()")
         if not self.is_logged_in():
             log("  Response: Not logged in, returning []")
             log("="*60)
             return []
         try:
-            albums = list(self.session.user.albums())
-            log(f"  Response: Success - {len(albums)} albums")
+            albums = list(self.session.user.favorites.albums())
+            log(f"  Response: Success - {len(albums)} favorite albums")
             for idx, album in enumerate(albums[:5]):  # Log first 5
                 log(f"    [{idx}] {album.name} (ID: {album.id}, tracks: {getattr(album, 'num_tracks', '?')})")
             if len(albums) > 5:
@@ -122,6 +122,8 @@ class TidalClient:
             return albums
         except Exception as e:
             log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
             log("="*60)
             return []
 
@@ -149,6 +151,8 @@ class TidalClient:
             return playlists
         except Exception as e:
             log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
             log("="*60)
             return []
 
@@ -176,6 +180,8 @@ class TidalClient:
             return tracks
         except Exception as e:
             log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
             log("="*60)
             return []
 
@@ -209,6 +215,8 @@ class TidalClient:
             return tracks
         except Exception as e:
             log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
             log("="*60)
             return []
 
@@ -257,15 +265,37 @@ class TidalClient:
         Returns:
             Track URL or None if not available
         """
+        log("="*60)
+        log(f"API CALL: get_track_url(track_id={track_id}, quality={quality})")
+
         if not self.is_logged_in():
+            log("  Response: Not logged in, returning None")
+            log("="*60)
             return None
 
-        track = self.session.track(track_id)
-        # Map quality to Tidal quality enum
-        tidal_quality = tidalapi.Quality.high_lossless if quality == "high" else tidalapi.Quality.low_320k
-
         try:
-            stream = track.get_url(quality=tidal_quality)
+            log(f"  - Fetching track object for ID {track_id}")
+            track = self.session.track(track_id)
+            log(f"  - Track fetched: {track.name if hasattr(track, 'name') else 'Unknown'}")
+
+            # Set quality on the session config
+            if quality == "high":
+                self.session.config.quality = tidalapi.Quality.high_lossless
+                log(f"  - Session quality set to: HIGH_LOSSLESS")
+            else:
+                self.session.config.quality = tidalapi.Quality.low_320k
+                log(f"  - Session quality set to: LOW_320K")
+
+            # Get stream URL (no quality parameter needed - uses session config)
+            log(f"  - Requesting stream URL...")
+            stream = track.get_url()
+            log(f"  Response: Success - URL obtained")
+            log(f"  - URL: {stream[:50]}..." if stream and len(stream) > 50 else f"  - URL: {stream}")
+            log("="*60)
             return stream
-        except Exception:
+        except Exception as e:
+            log(f"  Response: ERROR - {e}")
+            import traceback
+            log(traceback.format_exc())
+            log("="*60)
             return None
