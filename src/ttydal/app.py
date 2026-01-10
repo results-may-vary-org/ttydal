@@ -234,21 +234,27 @@ class TtydalApp(App):
             player_page.focus_tracks()
 
     def action_toggle_play(self) -> None:
-        """Toggle play/pause."""
+        """Toggle play/pause or play selected track (smart behavior).
+
+        Behavior:
+        - If tracks list is focused: delegate to TracksList (smart play/pause)
+        - If tracks list is not focused: toggle pause/play
+        """
         log("TtydalApp.action_toggle_play() called")
         if self.current_page == "player":
-            # Check if tracks list is focused - if so, let it handle space
+            # Check if tracks list is focused - if so, let it handle space (smart behavior)
             try:
-                from ttydal.components.tracks_list import TracksList
                 focused = self.focused
                 # If a ListView inside TracksList has focus, let TracksList handle it
                 if focused and focused.id == "tracks-listview":
-                    log("  - TracksList focused, delegating to play_selected_track")
+                    log("  - TracksList focused, delegating to TracksList.action_play_selected_track()")
+                    # The binding priority will let TracksList handle it
                     return
             except Exception as e:
                 log(f"  - Error checking focus: {e}")
 
-            log("  - Calling player_page.toggle_playback()")
+            # Not on tracks list, just toggle pause/play
+            log("  - Not on tracks list, toggling pause/play")
             player_page = self.query_one(PlayerPage)
             player_page.toggle_playback()
         else:

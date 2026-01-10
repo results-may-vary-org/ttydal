@@ -14,7 +14,7 @@ class TracksList(Container):
     """Tracks list widget for browsing and selecting tracks."""
 
     BINDINGS = [
-        Binding("space", "play_selected_track", "Play Track", show=True, priority=True),
+        Binding("space", "play_selected_track", "Play/Pause", show=True, priority=True),
         Binding("r", "refresh_tracks", "Refresh", show=True),
     ]
 
@@ -152,19 +152,47 @@ class TracksList(Container):
         return f"{minutes}:{secs:02d}"
 
     def action_play_selected_track(self) -> None:
-        """Play the currently selected track (space key action)."""
-        log("TracksList: Play selected track action triggered")
+        """Play the currently selected track or toggle pause (space key action).
+
+        Behavior:
+        - If no track selected: do nothing
+        - If selected track is different from playing track: play selected track
+        - If selected track is same as playing track: toggle pause
+        - If no track is playing: play selected track
+        """
+        log("TracksList: Space key action triggered")
         list_view = self.query_one("#tracks-listview", ListView)
         index = list_view.index
 
-        if index is not None and index < len(self.tracks):
-            track = self.tracks[index]
-            log(f"  - Playing track: {track['name']}")
-            self.post_message(
-                self.TrackSelected(track["id"], track)
-            )
+        if index is None or index >= len(self.tracks):
+            log("  - No track selected, toggling pause/play")
+            # No track selected, toggle pause on whatever is playing
+            from ttydal.player import Player
+            player = Player()
+            player.toggle_pause()
+            return
+
+        selected_track = self.tracks[index]
+        log(f"  - Selected track: {selected_track['name']} (ID: {selected_track['id']})")
+
+        # Get currently playing track
+        from ttydal.player import Player
+        player = Player()
+        current_track = player.get_current_track()
+
+        if current_track and current_track.get('id') == selected_track['id']:
+            # Same track is selected and playing, toggle pause
+            log(f"  - Same track already playing, toggling pause")
+            player.toggle_pause()
         else:
-            log("  - No track selected")
+            # Different track or no track playing, play the selected track
+            if current_track:
+                log(f"  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track")
+            else:
+                log(f"  - No track playing, starting playback")
+            self.post_message(
+                self.TrackSelected(selected_track["id"], selected_track)
+            )
 
     def action_refresh_tracks(self) -> None:
         """Refresh the current tracks list (r key action)."""
@@ -182,6 +210,8 @@ class TracksList(Container):
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle track selection (Enter key or double-click).
 
+        Always plays the selected track, even if it's already playing.
+
         Args:
             event: The selection event
         """
@@ -189,7 +219,8 @@ class TracksList(Container):
             index = event.list_view.index
             if index is not None and index < len(self.tracks):
                 track = self.tracks[index]
-                log(f"TracksList: Track selected via list - {track['name']}")
+                log(f"TracksList: Track selected via Enter/click - {track['name']}")
+                log(f"  - Playing/restarting track")
                 self.post_message(
                     self.TrackSelected(track["id"], track)
                 )
