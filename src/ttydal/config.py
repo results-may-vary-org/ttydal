@@ -50,7 +50,8 @@ class ConfigManager:
             # Default configuration
             self._config = {
                 "theme": "textual-dark",
-                "quality": "high"  # high or low
+                "quality": "high",  # high or low
+                "auto_play": True  # auto-play next track when current finishes
             }
             self._save_config()
             log(f"  - Default config created: {self._config}")
@@ -90,3 +91,13 @@ class ConfigManager:
         if value not in ("high", "low"):
             raise ValueError("Quality must be 'high' or 'low'")
         self.set("quality", value)
+
+    @property
+    def auto_play(self) -> bool:
+        """Get the auto-play setting."""
+        return self.get("auto_play", True)
+
+    @auto_play.setter
+    def auto_play(self, value: bool) -> None:
+        """Set the auto-play setting."""
+        self.set("auto_play", value)

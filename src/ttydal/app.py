@@ -37,6 +37,7 @@ class TtydalApp(App):
         Binding("a", "focus_albums", "Albums", show=True),
         Binding("t", "focus_tracks", "Tracks", show=True),
         Binding("space", "toggle_play", "Play/Pause", show=True),
+        Binding("n", "toggle_auto_play", "Auto-Play", show=True),
         Binding("shift+left", "seek_backward", "Seek -10s", show=True),
         Binding("shift+right", "seek_forward", "Seek +10s", show=True),
         Binding("q", "quit", "Quit", show=True),
@@ -271,6 +272,18 @@ class TtydalApp(App):
         if self.current_page == "player":
             player_page = self.query_one(PlayerPage)
             player_page.seek_forward()
+
+    def action_toggle_auto_play(self) -> None:
+        """Toggle auto-play next track setting."""
+        log("TtydalApp.action_toggle_auto_play() called")
+        current_state = self.config.auto_play
+        new_state = not current_state
+        self.config.auto_play = new_state
+        log(f"  - Auto-play toggled: {current_state} -> {new_state}")
+
+        # Show notification
+        status = "enabled" if new_state else "disabled"
+        self.notify(f"Auto-play {status}", severity="information")
 
     def on_config_page_theme_changed(
         self, event: ConfigPage.ThemeChanged

@@ -81,8 +81,15 @@ class TracksList(Container):
             log("TracksList: Registered track end callback")
 
     def _on_track_end(self) -> None:
-        """Handle track end event - play next track in list."""
+        """Handle track end event - play next track in list if auto-play is enabled."""
         log("TracksList._on_track_end() called")
+
+        # Check if auto-play is enabled
+        from ttydal.config import ConfigManager
+        config = ConfigManager()
+        if not config.auto_play:
+            log("  - Auto-play is disabled, not playing next track")
+            return
 
         if self.current_playing_index is None:
             log("  - No current playing index, cannot auto-play next")
@@ -108,6 +115,9 @@ class TracksList(Container):
             list_view.index = next_index
         except Exception as e:
             log(f"  - Error updating ListView selection: {e}")
+
+        # Update visual indicators
+        self._update_track_indicators()
 
         # Play the next track
         self.post_message(
@@ -184,6 +194,9 @@ class TracksList(Container):
         header = self.query_one(Label)
         header.update(f"Tracks - {item_name}")
 
+        # Update visual indicators (in case we're reloading while a track is playing)
+        self._update_track_indicators()
+
     def _format_duration(self, seconds: int) -> str:
         """Format duration in seconds to MM:SS.
 
@@ -196,6 +209,24 @@ class TracksList(Container):
         minutes = seconds // 60
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
+
+    def _update_track_indicators(self) -> None:
+        """Update track list to show '>' indicator for currently playing track."""
+        try:
+            list_view = self.query_one("#tracks-listview", ListView)
+            for idx, list_item in enumerate(list_view.children):
+                if idx < len(self.tracks):
+                    track = self.tracks[idx]
+                    track_name = track["name"]
+                    artist = track["artist"]
+                    duration = self._format_duration(track["duration"])
+
+                    # Add ">" prefix if this is the currently playing track
+                    prefix = "> " if idx == self.current_playing_index else "  "
+                    label = list_item.query_one(Label)
+                    label.update(f"{prefix}{idx + 1}. {track_name} - {artist} ({duration})")
+        except Exception as e:
+            log(f"  - Error updating track indicators: {e}")
 
     def action_play_selected_track(self) -> None:
         """Play the currently selected track or toggle pause (space key action).
@@ -241,6 +272,9 @@ class TracksList(Container):
             self.current_playing_index = index
             log(f"  - Updated current playing index to: {index}")
 
+            # Update visual indicators
+            self._update_track_indicators()
+
             self.post_message(
                 self.TrackSelected(selected_track["id"], selected_track)
             )
@@ -276,6 +310,9 @@ class TracksList(Container):
                 # Update current playing index for auto-play tracking
                 self.current_playing_index = index
                 log(f"  - Updated current playing index to: {index}")
+
+                # Update visual indicators
+                self._update_track_indicators()
 
                 self.post_message(
                     self.TrackSelected(track["id"], track)

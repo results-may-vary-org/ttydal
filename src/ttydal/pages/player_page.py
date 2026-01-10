@@ -75,6 +75,12 @@ class PlayerPage(Container):
         if track_url:
             log(f"  - Got track URL, starting playback")
             self.player.play(track_url, event.track_info)
+
+            # Update album list to show which album/playlist is currently playing
+            tracks_list = self.query_one(TracksList)
+            if tracks_list.current_item_id:
+                albums_list = self.query_one(AlbumsList)
+                albums_list.set_playing_item(tracks_list.current_item_id)
         else:
             log(f"  - Failed to get track URL")
 

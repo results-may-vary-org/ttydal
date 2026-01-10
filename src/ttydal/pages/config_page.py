@@ -111,6 +111,9 @@ class ConfigPage(Container):
         valid_qualities = ["high", "low"]
         quality_value = self.config.quality if self.config.quality in valid_qualities else "high"
 
+        # Auto-play setting
+        auto_play_value = "on" if self.config.auto_play else "off"
+
         with VerticalScroll():
             with Vertical():
                 yield Label("[b]Settings[/b]", markup=True)
@@ -130,6 +133,16 @@ class ConfigPage(Container):
                     ],
                     value=quality_value,
                     id="quality-select"
+                )
+
+                yield Label("Auto-Play Next Track:")
+                yield Select(
+                    options=[
+                        ("On", "on"),
+                        ("Off", "off")
+                    ],
+                    value=auto_play_value,
+                    id="auto-play-select"
                 )
 
                 yield Button("Save Settings", variant="primary", id="save-btn")
@@ -166,6 +179,7 @@ class ConfigPage(Container):
         """Save current settings to config."""
         theme_select = self.query_one("#theme-select", Select)
         quality_select = self.query_one("#quality-select", Select)
+        auto_play_select = self.query_one("#auto-play-select", Select)
         status_label = self.query_one("#status-message", Label)
 
         # Save theme
@@ -179,6 +193,11 @@ class ConfigPage(Container):
             quality = str(quality_select.value)
             self.config.quality = quality
             self.post_message(self.QualityChanged(quality))
+
+        # Save auto-play setting
+        if auto_play_select.value:
+            auto_play = str(auto_play_select.value) == "on"
+            self.config.auto_play = auto_play
 
         status_label.update("[green]Settings saved successfully![/green]")
         self.set_timer(2.0, lambda: status_label.update(""))

@@ -60,6 +60,7 @@ class AlbumsList(Container):
         super().__init__()
         self.tidal = TidalClient()
         self.albums = []
+        self.current_playing_item_id = None
 
     def compose(self) -> ComposeResult:
         """Compose the albums list UI."""
@@ -152,8 +153,48 @@ class AlbumsList(Container):
         header = self.query_one(Label)
         header.update("Albums & Playlists")
 
+        # Update visual indicators (in case we're reloading while something is playing)
+        self._update_album_indicators()
+
         # Auto-select "My Tracks" after loading
         self.set_timer(0.1, self.auto_select_my_tracks)
+
+    def set_playing_item(self, item_id: str) -> None:
+        """Mark an album/playlist as currently playing.
+
+        Args:
+            item_id: The ID of the album/playlist that's currently playing
+        """
+        log(f"AlbumsList.set_playing_item({item_id}) called")
+        self.current_playing_item_id = item_id
+        self._update_album_indicators()
+
+    def _update_album_indicators(self) -> None:
+        """Update album list to show '>' indicator for currently playing album/playlist."""
+        try:
+            list_view = self.query_one("#albums-listview", ListView)
+            for idx, list_item in enumerate(list_view.children):
+                if idx < len(self.albums):
+                    item = self.albums[idx]
+                    item_name = item["name"]
+                    item_type = item["type"]
+                    item_count = item["count"]
+
+                    # Add ">" prefix if this is the currently playing item
+                    prefix = "> " if item["id"] == self.current_playing_item_id else "  "
+
+                    # Format display based on type
+                    if item_type == "favorites":
+                        display_name = f"{prefix}{item_name}"
+                    elif item_type == "playlist":
+                        display_name = f"{prefix}🎵 {item_name} ({item_count} tracks)"
+                    else:  # album
+                        display_name = f"{prefix}💿 {item_name} ({item_count} tracks)"
+
+                    label = list_item.query_one(Label)
+                    label.update(display_name)
+        except Exception as e:
+            log(f"  - Error updating album indicators: {e}")
 
     def action_refresh_albums(self) -> None:
         """Refresh the albums and playlists list (r key action)."""
