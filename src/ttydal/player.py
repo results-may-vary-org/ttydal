@@ -4,7 +4,16 @@ from typing import Callable
 
 import mpv
 from ttydal.logger import log
+from enum import IntEnum
 
+# map from mvp.EndFileReason
+class EndFileReason(IntEnum):
+    EOF = mpv.MpvEventEndFile.EOF
+    RESTARTED = mpv.MpvEventEndFile.RESTARTED
+    ABORTED = mpv.MpvEventEndFile.ABORTED
+    QUIT = mpv.MpvEventEndFile.QUIT
+    ERROR = mpv.MpvEventEndFile.ERROR
+    REDIRECT = mpv.MpvEventEndFile.REDIRECT
 
 class Player:
     """Singleton MPV player wrapper."""
@@ -27,7 +36,6 @@ class Player:
         log("  - MPV will be lazy-loaded on first use")
         self.mpv = None
         self._current_track = None
-        self._manual_track_change = False  # Flag to prevent auto-play during manual track changes
         self._callbacks: dict[str, list[Callable]] = {
             "on_track_end": [],
             "on_time_pos_change": []
@@ -53,26 +61,34 @@ class Player:
                     callback(value)
 
         @self.mpv.event_callback('end-file')
-        def end_file_callback(event):
-            """Handle track end event."""
-            log("+=" * 80)
-            log("MPV EVENT: end-file (player.py)")
-            log(f"  - Event data: {event}")
-            log(f"  - Event reason: {event.get('event', {}).get('reason', 'unknown')}") # fixme seem to crash here because log is never send
-            log(f"  - Manual track change flag: {self._manual_track_change}")
+        def end_file_callback(event: mpv.MpvEventEndFile):
+            """Handle track end event - only trigger auto-play if track finished naturally."""
+            log("=" * 80)
+            log("MPV EVENT: end-file")
+
+            # Extract reason safely
+            try:
+                reason = event.get('reason', b'unknown')
+                # Convert bytes to string if needed
+                if isinstance(reason, bytes):
+                    reason = reason.decode('utf-8')
+                log(f"  - Reason: {reason}")
+            except Exception as e:
+                log(f"  - Error extracting reason: {e}")
+                reason = 'unknown'
+
             log(f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
 
-            # Skip auto-play callbacks if this is a manual track change
-            if self._manual_track_change:
-                log("  - Skipping auto-play callbacks (manual track change)")
-                self._manual_track_change = False  # Reset flag
-                log("-=" * 80)
-                return
+            # Only trigger auto-play if track ended naturally (EOF), not if user stopped it
+            if reason == 'eof':
+                log(f"  - Track finished naturally (EOF)")
+                log(f"  - Calling {len(self._callbacks['on_track_end'])} auto-play callbacks")
+                for callback in self._callbacks["on_track_end"]:
+                    callback()
+            else:
+                log(f"  - Track stopped manually (reason: {reason}), skipping auto-play")
 
-            log(f"  - Calling {len(self._callbacks['on_track_end'])} track end callbacks")
-            for callback in self._callbacks["on_track_end"]:
-                callback()
-            log("*=" * 80)
+            log("=" * 80)
 
     def play(self, url: str, track_info: dict | None = None) -> None:
         """Play a track from URL.
@@ -84,29 +100,21 @@ class Player:
         log("=" * 80)
         log("Player.play() called")
         if track_info:
-            log(f"  - New track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
+            log(f"  - Track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
             log(f"  - Track ID: {track_info.get('id', 'Unknown')}")
         log(f"  - URL: {url[:50]}..." if len(url) > 50 else f"  - URL: {url}")
-
-        # Set flag to prevent auto-play when MPV stops the current track
-        was_playing = self._current_track is not None
-        if was_playing:
-            log(f"  - Stopping current track: {self._current_track.get('name', 'Unknown')}")
-            log("  - Setting manual_track_change flag to TRUE (will skip auto-play)")
-            self._manual_track_change = True
 
         self._ensure_mpv()
         self._current_track = track_info
 
         try:
-            log("  - Calling mpv.play()...")
+            log("  - Starting playback...")
             self.mpv.play(url)
-            # Ensure playback starts (unpause if needed)
             self.mpv.pause = False
-            log("  - Playback started successfully")
+            log("  - Playback started")
             log("=" * 80)
         except Exception as e:
-            log(f"  - ERROR starting playback: {e}")
+            log(f"  - ERROR: {e}")
             import traceback
             log(traceback.format_exc())
             log("=" * 80)

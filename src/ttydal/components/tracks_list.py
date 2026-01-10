@@ -81,59 +81,42 @@ class TracksList(Container):
             log("TracksList: Registered track end callback")
 
     def _on_track_end(self) -> None:
-        """Handle track end event - play next track in list if auto-play is enabled."""
+        """Handle track end - play next track if auto-play is enabled."""
         log("=" * 80)
-        log("TracksList._on_track_end() called")
+        log("TracksList: Auto-play callback triggered")
 
         # Check if auto-play is enabled
         from ttydal.config import ConfigManager
         config = ConfigManager()
-        log(f"  - Auto-play setting: {config.auto_play}")
         if not config.auto_play:
-            log("  - Auto-play is disabled, not playing next track")
+            log("  - Auto-play disabled, doing nothing")
             log("=" * 80)
             return
 
-        log(f"  - Current playing index: {self.current_playing_index}")
-        log(f"  - Tracks loaded: {len(self.tracks)}")
-
-        if self.current_playing_index is None:
-            log("  - No current playing index, cannot auto-play next")
+        # Verify we have tracks and a current position
+        if self.current_playing_index is None or not self.tracks:
+            log("  - No tracks or index, cannot auto-play")
             log("=" * 80)
             return
 
-        if not self.tracks:
-            log("  - No tracks loaded, cannot auto-play next")
-            log("=" * 80)
-            return
-
-        # Calculate next track index (loop back to 0 if at end)
+        # Calculate next track (loop to start if at end)
         next_index = (self.current_playing_index + 1) % len(self.tracks)
-        log(f"  - Current index: {self.current_playing_index}, Next index: {next_index} (total tracks: {len(self.tracks)})")
-
         next_track = self.tracks[next_index]
-        log(f"  - Auto-playing next track: {next_track['name']} (ID: {next_track['id']})")
+        log(f"  - Playing next: {next_track['name']} (index {next_index}/{len(self.tracks)-1})")
 
-        # Update the current playing index
+        # Update state
         self.current_playing_index = next_index
 
-        # Update ListView selection to highlight the next track
+        # Update UI
         try:
             list_view = self.query_one("#tracks-listview", ListView)
             list_view.index = next_index
-            log(f"  - Updated ListView selection to index {next_index}")
+            self._update_track_indicators()
         except Exception as e:
-            log(f"  - Error updating ListView selection: {e}")
+            log(f"  - UI update error: {e}")
 
-        # Update visual indicators
-        self._update_track_indicators()
-        log("  - Updated visual indicators")
-
-        # Play the next track
-        log("  - Posting TrackSelected message for next track")
-        self.post_message(
-            self.TrackSelected(next_track["id"], next_track)
-        )
+        # Trigger playback
+        self.post_message(self.TrackSelected(next_track["id"], next_track))
         log("=" * 80)
 
     def load_tracks(self, item_id: str, item_name: str, item_type: str = "album") -> None:
