@@ -61,32 +61,27 @@ class Player:
                     callback(value)
 
         @self.mpv.event_callback('end-file')
-        def end_file_callback(event: mpv.MpvEventEndFile):
+        def end_file_callback(event: mpv.MpvEvent):
             """Handle track end event - only trigger auto-play if track finished naturally."""
             log("=" * 80)
             log("MPV EVENT: end-file")
 
-            # Extract reason safely
-            try:
-                reason = event.get('reason', b'unknown')
-                # Convert bytes to string if needed
-                if isinstance(reason, bytes):
-                    reason = reason.decode('utf-8')
-                log(f"  - Reason: {reason}")
-            except Exception as e:
-                log(f"  - Error extracting reason: {e}")
-                reason = 'unknown'
+            data = event.data
+            if not data:
+                log("  - No event data, skipping")
+                log("=" * 80)
+                return
 
-            log(f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
+            reason = EndFileReason(data.reason)
+            log(f"  - Reason: {reason.name}")
+            log(f"  - Track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
 
-            # Only trigger auto-play if track ended naturally (EOF), not if user stopped it
-            if reason == 'eof':
-                log(f"  - Track finished naturally (EOF)")
-                log(f"  - Calling {len(self._callbacks['on_track_end'])} auto-play callbacks")
+            if reason is EndFileReason.EOF:
+                log("  - Track finished naturally (EOF) → calling auto-play callbacks")
                 for callback in self._callbacks["on_track_end"]:
                     callback()
             else:
-                log(f"  - Track stopped manually (reason: {reason}), skipping auto-play")
+                log(f"  - Track ended with reason {reason.name} → skipping auto-play")
 
             log("=" * 80)
 
