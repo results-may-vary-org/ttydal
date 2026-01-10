@@ -1,7 +1,7 @@
 """Config page for application settings."""
 
 from textual.app import ComposeResult
-from textual.containers import Container, Vertical
+from textual.containers import Container, Vertical, VerticalScroll
 from textual.widgets import Label, Button, Select
 from textual.message import Message
 
@@ -34,11 +34,17 @@ class ConfigPage(Container):
         align: center middle;
     }
 
-    ConfigPage Vertical {
+    ConfigPage VerticalScroll {
         width: 60;
-        height: auto;
+        height: 1fr;
+        max-height: 100%;
         background: $panel;
         border: solid $primary;
+    }
+
+    ConfigPage Vertical {
+        width: 1fr;
+        height: auto;
         padding: 2;
     }
 
@@ -105,38 +111,39 @@ class ConfigPage(Container):
         valid_qualities = ["high", "low"]
         quality_value = self.config.quality if self.config.quality in valid_qualities else "high"
 
-        with Vertical():
-            yield Label("[b]Settings[/b]", markup=True)
+        with VerticalScroll():
+            with Vertical():
+                yield Label("[b]Settings[/b]", markup=True)
 
-            yield Label("Theme:")
-            yield Select(
-                options=self.AVAILABLE_THEMES,
-                value=theme_value,
-                id="theme-select"
-            )
+                yield Label("Theme:")
+                yield Select(
+                    options=self.AVAILABLE_THEMES,
+                    value=theme_value,
+                    id="theme-select"
+                )
 
-            yield Label("Audio Quality:")
-            yield Select(
-                options=[
-                    ("High (Lossless)", "high"),
-                    ("Low (320k)", "low")
-                ],
-                value=quality_value,
-                id="quality-select"
-            )
+                yield Label("Audio Quality:")
+                yield Select(
+                    options=[
+                        ("High (Lossless)", "high"),
+                        ("Low (320k)", "low")
+                    ],
+                    value=quality_value,
+                    id="quality-select"
+                )
 
-            yield Button("Save Settings", variant="primary", id="save-btn")
-            yield Label("", id="status-message")
+                yield Button("Save Settings", variant="primary", id="save-btn")
+                yield Label("", id="status-message")
 
-            # Tidal Account section
-            yield Label("")
-            yield Label("[b]Tidal Account[/b]", markup=True)
-            yield Button("Login to Tidal", variant="success", id="login-btn")
+                # Tidal Account section
+                yield Label("")
+                yield Label("[b]Tidal Account[/b]", markup=True)
+                yield Button("Login to Tidal", variant="success", id="login-btn")
 
-            # Debug section
-            yield Label("")
-            yield Label("[b]Debug[/b]", markup=True)
-            yield Button("Clear Debug Logs", variant="warning", id="clear-logs-btn")
+                # Debug section
+                yield Label("")
+                yield Label("[b]Debug[/b]", markup=True)
+                yield Button("Clear Debug Logs", variant="warning", id="clear-logs-btn")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events.

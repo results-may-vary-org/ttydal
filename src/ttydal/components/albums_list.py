@@ -75,9 +75,8 @@ class AlbumsList(Container):
     def delayed_load(self) -> None:
         """Load albums after a delay to ensure session is ready."""
         log("AlbumsList.delayed_load() called")
-        self.load_albums()
-        # Auto-select "My Tracks" after loading
-        self.set_timer(0.1, self.auto_select_my_tracks)
+        # Run loading in a worker
+        self.run_worker(self._load_albums_async(), exclusive=False)
 
     def auto_select_my_tracks(self) -> None:
         """Auto-select My Tracks on startup."""
@@ -98,6 +97,15 @@ class AlbumsList(Container):
     def load_albums(self) -> None:
         """Load user albums and playlists from Tidal."""
         log("AlbumsList.load_albums() called")
+        # Show loading in header
+        header = self.query_one(Label)
+        header.update("Albums & Playlists (Loading...)")
+        # Run loading in a worker
+        self.run_worker(self._load_albums_async(), exclusive=False)
+
+    async def _load_albums_async(self) -> None:
+        """Async worker to load albums without blocking UI."""
+        log("AlbumsList._load_albums_async() called")
         list_view = self.query_one("#albums-listview", ListView)
         list_view.clear()
 
@@ -140,12 +148,17 @@ class AlbumsList(Container):
         log(f"  - Loaded {len(user_albums)} albums")
         log(f"  - Total items in list: {len(self.albums)}")
 
+        # Update header to remove loading text
+        header = self.query_one(Label)
+        header.update("Albums & Playlists")
+
+        # Auto-select "My Tracks" after loading
+        self.set_timer(0.1, self.auto_select_my_tracks)
+
     def action_refresh_albums(self) -> None:
         """Refresh the albums and playlists list (r key action)."""
         log("AlbumsList: Refresh albums action triggered")
         self.load_albums()
-        # Show notification
-        self.app.notify("Albums & Playlists refreshed!", severity="information")
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle album or playlist selection.

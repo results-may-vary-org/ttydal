@@ -77,17 +77,30 @@ class TracksList(Container):
             item_type: Type of item ('album', 'playlist', or 'favorites')
         """
         log(f"TracksList.load_tracks({item_id}, {item_name}, {item_type}) called")
-        list_view = self.query_one("#tracks-listview", ListView)
-        list_view.clear()
-        self.tracks = []
         self.current_album_name = item_name
         self.current_item_id = item_id
         self.current_item_type = item_type
 
-        # Update header
+        # Update header to show loading
         header = self.query_one(Label)
-        header.update(f"Tracks - {item_name}")
+        header.update(f"Tracks - {item_name} (Loading...)")
 
+        # Clear the list and start loading in a worker
+        list_view = self.query_one("#tracks-listview", ListView)
+        list_view.clear()
+        self.tracks = []
+
+        # Run the loading in a worker so UI can update
+        self.run_worker(self._load_tracks_async(item_id, item_name, item_type), exclusive=False)
+
+    async def _load_tracks_async(self, item_id: str, item_name: str, item_type: str) -> None:
+        """Async worker to load tracks without blocking UI.
+
+        Args:
+            item_id: The item ID to load tracks from
+            item_name: The item name for display
+            item_type: Type of item ('album', 'playlist', or 'favorites')
+        """
         # Load tracks based on item type
         log(f"  - Loading tracks for type: {item_type}")
         if item_type == "favorites":
@@ -103,6 +116,7 @@ class TracksList(Container):
         log(f"  - Retrieved {len(tracks_list)} tracks")
 
         # Populate ALL tracks
+        list_view = self.query_one("#tracks-listview", ListView)
         for idx, track in enumerate(tracks_list, 1):
             track_name = track.name
             artist = track.artist.name if hasattr(track, 'artist') else "Unknown"
@@ -119,6 +133,10 @@ class TracksList(Container):
             })
 
         log(f"  - Populated {len(self.tracks)} tracks in UI")
+
+        # Update header to remove loading text
+        header = self.query_one(Label)
+        header.update(f"Tracks - {item_name}")
 
     def _format_duration(self, seconds: int) -> str:
         """Format duration in seconds to MM:SS.
@@ -158,7 +176,6 @@ class TracksList(Container):
                 self.current_album_name,
                 self.current_item_type
             )
-            self.app.notify("Tracks refreshed!", severity="information")
         else:
             log("  - No tracks loaded yet, nothing to refresh")
 
