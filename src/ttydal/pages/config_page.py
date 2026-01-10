@@ -146,9 +146,6 @@ class ConfigPage(Container):
                     id="auto-play-select"
                 )
 
-                yield Button("Save Settings", variant="primary", id="save-btn")
-                yield Label("", id="status-message")
-
                 # Tidal Account section
                 yield Label("")
                 yield Label("[b]Tidal Account[/b]", markup=True)
@@ -159,46 +156,39 @@ class ConfigPage(Container):
                 yield Label("[b]Debug[/b]", markup=True)
                 yield Button("Clear Debug Logs", variant="warning", id="clear-logs-btn")
 
+    def on_select_changed(self, event: Select.Changed) -> None:
+        """Handle select value changes - auto-save all settings.
+
+        Args:
+            event: Select changed event
+        """
+        # Theme: preview and save immediately
+        if event.select.id == "theme-select" and event.value:
+            theme = str(event.value)
+            # Apply theme immediately for preview
+            self.app.theme = theme
+            # Save to config
+            self.config.theme = theme
+            self.post_message(self.ThemeChanged(theme))
+
+        # Quality: save immediately
+        elif event.select.id == "quality-select" and event.value:
+            quality = str(event.value)
+            self.config.quality = quality
+            self.post_message(self.QualityChanged(quality))
+
+        # Auto-play: save immediately
+        elif event.select.id == "auto-play-select" and event.value:
+            auto_play = str(event.value) == "on"
+            self.config.auto_play = auto_play
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events.
 
         Args:
             event: Button press event
         """
-        if event.button.id == "save-btn":
-            self.save_settings()
-        elif event.button.id == "login-btn":
+        if event.button.id == "login-btn":
             self.post_message(self.LoginRequested())
         elif event.button.id == "clear-logs-btn":
             self.post_message(self.ClearLogsRequested())
-            # Show confirmation message
-            status_label = self.query_one("#status-message", Label)
-            status_label.update("[yellow]Debug logs cleared![/yellow]")
-            self.set_timer(2.0, lambda: status_label.update(""))
-
-    def save_settings(self) -> None:
-        """Save current settings to config."""
-        theme_select = self.query_one("#theme-select", Select)
-        quality_select = self.query_one("#quality-select", Select)
-        auto_play_select = self.query_one("#auto-play-select", Select)
-        status_label = self.query_one("#status-message", Label)
-
-        # Save theme
-        if theme_select.value:
-            theme = str(theme_select.value)
-            self.config.theme = theme
-            self.post_message(self.ThemeChanged(theme))
-
-        # Save quality
-        if quality_select.value:
-            quality = str(quality_select.value)
-            self.config.quality = quality
-            self.post_message(self.QualityChanged(quality))
-
-        # Save auto-play setting
-        if auto_play_select.value:
-            auto_play = str(auto_play_select.value) == "on"
-            self.config.auto_play = auto_play
-
-        status_label.update("[green]Settings saved successfully![/green]")
-        self.set_timer(2.0, lambda: status_label.update(""))

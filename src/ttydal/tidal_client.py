@@ -204,7 +204,7 @@ class TidalClient:
         try:
             album = self.session.album(album_id)
             log(f"  - Album fetched: {album.name if hasattr(album, 'name') else 'Unknown'}")
-            # Get all tracks - tidalapi should handle pagination
+            # fixme Get all tracks - tidalapi should handle pagination
             tracks = list(album.tracks())
             log(f"  Response: Success - {len(tracks)} tracks from album")
             for idx, track in enumerate(tracks[:3]):  # Log first 3
@@ -239,7 +239,7 @@ class TidalClient:
         try:
             playlist = self.session.playlist(playlist_id)
             log(f"  - Playlist fetched: {playlist.name if hasattr(playlist, 'name') else 'Unknown'}")
-            # Get ALL tracks - tidalapi handles pagination automatically
+            # fixme Get ALL tracks - tidalapi handles pagination automatically
             tracks = list(playlist.tracks())
             log(f"  Response: Success - {len(tracks)} tracks from playlist")
             for idx, track in enumerate(tracks[:3]):  # Log first 3
@@ -282,20 +282,20 @@ class TidalClient:
             # Set quality on the session config
             if quality == "max":
                 self.session.config.quality = tidalapi.Quality.hi_res_lossless
-                log(f"  - Session quality set to: HI_RES_LOSSLESS (up to 24bit/192kHz)")
+                log("  - Session quality set to: HI_RES_LOSSLESS (up to 24bit/192kHz)")
             elif quality == "high":
                 self.session.config.quality = tidalapi.Quality.high_lossless
-                log(f"  - Session quality set to: HIGH_LOSSLESS (16bit/44.1kHz)")
+                log("  - Session quality set to: HIGH_LOSSLESS (16bit/44.1kHz)")
             else:  # low
                 self.session.config.quality = tidalapi.Quality.low_320k
-                log(f"  - Session quality set to: LOW_320K (320kbps AAC)")
+                log("  - Session quality set to: LOW_320K (320kbps AAC)")
 
             # Get stream - this returns a Stream object with metadata
-            log(f"  - Requesting stream metadata...")
+            log("  - Requesting stream metadata...")
             stream = track.get_stream()
 
             if not stream:
-                log(f"  Response: ERROR - No stream available")
+                log("  Response: ERROR - No stream available")
                 log("="*60)
                 return None, None
 
@@ -308,13 +308,13 @@ class TidalClient:
             }
 
             # Get the actual playback URL from track (not stream)
-            log(f"  - Requesting playback URL...")
+            log("  - Requesting playback URL...")
             stream_url = track.get_url()
 
-            log(f"  Response: Success - Stream obtained")
+            log("  Response: Success - Stream obtained")
             log(f"  - Audio quality: {stream_metadata['audio_quality']}")
-            log(f"  - Bit depth: {stream_metadata['bit_depth']} bit" if stream_metadata['bit_depth'] else f"  - Bit depth: N/A")
-            log(f"  - Sample rate: {stream_metadata['sample_rate']} Hz" if stream_metadata['sample_rate'] else f"  - Sample rate: N/A")
+            log(f"  - Bit depth: {stream_metadata['bit_depth']} bit" if stream_metadata['bit_depth'] else "  - Bit depth: N/A")
+            log(f"  - Sample rate: {stream_metadata['sample_rate']} Hz" if stream_metadata['sample_rate'] else "  - Sample rate: N/A")
             log(f"  - Audio mode: {stream_metadata['audio_mode']}")
             log(f"  - URL: {stream_url[:50]}..." if stream_url and len(stream_url) > 50 else f"  - URL: {stream_url}")
             log("="*60)

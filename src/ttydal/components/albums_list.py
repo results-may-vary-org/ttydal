@@ -76,8 +76,8 @@ class AlbumsList(Container):
     def delayed_load(self) -> None:
         """Load albums after a delay to ensure session is ready."""
         log("AlbumsList.delayed_load() called")
-        # Run loading in a worker
-        self.run_worker(self._load_albums_async(), exclusive=False)
+        # Run loading in a worker - exclusive=True prevents race conditions
+        self.run_worker(self._load_albums_async(), exclusive=True)
 
     def auto_select_my_tracks(self) -> None:
         """Auto-select My Tracks on startup."""
@@ -101,26 +101,37 @@ class AlbumsList(Container):
         # Show loading in header
         header = self.query_one(Label)
         header.update("Albums & Playlists (Loading...)")
-        # Run loading in a worker
-        self.run_worker(self._load_albums_async(), exclusive=False)
+        # Clear list immediately (synchronously) to prevent display issues
+        list_view = self.query_one("#albums-listview", ListView)
+        list_view.remove_children()
+        self.albums = []
+        log("  - Cleared albums list synchronously using remove_children()")
+        # Run loading in a worker - exclusive=True prevents race conditions
+        self.run_worker(self._load_albums_async(), exclusive=True)
 
     async def _load_albums_async(self) -> None:
         """Async worker to load albums without blocking UI."""
         log("AlbumsList._load_albums_async() called")
-        list_view = self.query_one("#albums-listview", ListView)
-        list_view.clear()
 
-        # Add "My Tracks" as first item
-        list_view.append(ListItem(Label("My Tracks")))
-        self.albums = [{"id": "favorites", "name": "My Tracks", "type": "favorites", "count": "?"}]
+        # List already cleared synchronously before worker started
+        # Add "My Tracks" as first item - get actual favorite track count
+        list_view = self.query_one("#albums-listview", ListView)
+        log("  - Getting favorite tracks count...")
+        favorite_tracks = self.tidal.get_user_favorites()
+        fav_count = len(favorite_tracks)
+        log(f"  - Found {fav_count} favorite tracks")
+        list_view.append(ListItem(Label(f"My Tracks ({fav_count} tracks)")))
+        self.albums = [{"id": "favorites", "name": "My Tracks", "type": "favorites", "count": fav_count}]
 
         # Load user playlists
         log("  - Loading playlists...")
         user_playlists = self.tidal.get_user_playlists()
         for playlist in user_playlists:
             playlist_name = playlist.name
-            # Try to get track count from playlist object
-            track_count = getattr(playlist, 'num_tracks', None) or getattr(playlist, 'numberOfTracks', None) or '?'
+            # Get track count - check for None explicitly to handle 0 correctly
+            track_count = getattr(playlist, 'num_tracks', None)
+            if track_count is None:
+                track_count = '?'
             display_name = f"🎵 {playlist_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
             self.albums.append({
@@ -136,8 +147,10 @@ class AlbumsList(Container):
         user_albums = self.tidal.get_user_albums()
         for album in user_albums:
             album_name = album.name
-            # Try to get track count from album object
-            track_count = getattr(album, 'num_tracks', None) or getattr(album, 'numberOfTracks', None) or '?'
+            # Get track count - check for None explicitly to handle 0 correctly
+            track_count = getattr(album, 'num_tracks', None)
+            if track_count is None:
+                track_count = '?'
             display_name = f"💿 {album_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
             self.albums.append({
@@ -185,7 +198,7 @@ class AlbumsList(Container):
 
                     # Format display based on type
                     if item_type == "favorites":
-                        display_name = f"{prefix}{item_name}"
+                        display_name = f"{prefix}{item_name} ({item_count} tracks)"
                     elif item_type == "playlist":
                         display_name = f"{prefix}🎵 {item_name} ({item_count} tracks)"
                     else:  # album
