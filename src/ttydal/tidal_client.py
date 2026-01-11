@@ -255,73 +255,137 @@ class TidalClient:
             log("="*60)
             return []
 
-    def get_track_url(self, track_id: str, quality: str = "high") -> tuple[str | None, dict | None]:
-        """Get playback URL and stream metadata for a track.
+    def get_track_url(self, track_id: str, quality: str = "high") -> tuple[str | None, dict | None, dict]:
+        """Get playback URL and stream metadata for a track with automatic quality fallback.
 
         Args:
             track_id: The track ID
-            quality: Quality setting ('high' or 'low')
+            quality: Quality setting ('max', 'high', or 'low')
 
         Returns:
-            Tuple of (track_url, stream_metadata) or (None, None) if not available
-            stream_metadata contains: audio_quality, bit_depth, sample_rate, audio_mode
+            Tuple of (track_url, stream_metadata, error_info)
+            - track_url: Playback URL or None if failed
+            - stream_metadata: Contains audio_quality, bit_depth, sample_rate, audio_mode or None
+            - error_info: Always present dict with:
+                - requested_quality: The quality originally requested
+                - actual_quality: The quality actually used (if successful)
+                - fallback_applied: Whether we had to fallback to a lower quality
+                - error: Error message if completely failed
+                - tried_qualities: List of qualities attempted
         """
         log("="*60)
         log(f"API CALL: get_track_url(track_id={track_id}, quality={quality})")
 
+        # Define quality fallback order
+        quality_order = {
+            "max": ["max", "high", "low"],
+            "high": ["high", "low"],
+            "low": ["low"]
+        }
+
+        error_info = {
+            "requested_quality": quality,
+            "actual_quality": None,
+            "fallback_applied": False,
+            "error": None,
+            "tried_qualities": []
+        }
+
         if not self.is_logged_in():
+            error_info["error"] = "Not logged in"
             log("  Response: Not logged in, returning None")
             log("="*60)
-            return None, None
+            return None, None, error_info
 
+        # Get the fallback sequence for the requested quality
+        qualities_to_try = quality_order.get(quality, ["high", "low"])
+        log(f"  - Quality fallback sequence: {qualities_to_try}")
+
+        # Fetch track object once
         try:
             log(f"  - Fetching track object for ID {track_id}")
             track = self.session.track(track_id)
             log(f"  - Track fetched: {track.name if hasattr(track, 'name') else 'Unknown'}")
-
-            # Set quality on the session config
-            if quality == "max":
-                self.session.config.quality = tidalapi.Quality.hi_res_lossless
-                log("  - Session quality set to: HI_RES_LOSSLESS (up to 24bit/192kHz)")
-            elif quality == "high":
-                self.session.config.quality = tidalapi.Quality.high_lossless
-                log("  - Session quality set to: HIGH_LOSSLESS (16bit/44.1kHz)")
-            else:  # low
-                self.session.config.quality = tidalapi.Quality.low_320k
-                log("  - Session quality set to: LOW_320K (320kbps AAC)")
-
-            # Get stream - this returns a Stream object with metadata
-            log("  - Requesting stream metadata...")
-            stream = track.get_stream()
-
-            if not stream:
-                log("  Response: ERROR - No stream available")
-                log("="*60)
-                return None, None
-
-            # Extract stream metadata
-            stream_metadata = {
-                "audio_quality": getattr(stream, 'audio_quality', 'Unknown'),
-                "bit_depth": getattr(stream, 'bit_depth', None),
-                "sample_rate": getattr(stream, 'sample_rate', None),
-                "audio_mode": getattr(stream, 'audio_mode', 'Unknown')
-            }
-
-            # Get the actual playback URL from track (not stream)
-            log("  - Requesting playback URL...")
-            stream_url = track.get_url()
-
-            log("  Response: Success - Stream obtained")
-            log(f"  - Audio quality: {stream_metadata['audio_quality']}")
-            log(f"  - Bit depth: {stream_metadata['bit_depth']} bit" if stream_metadata['bit_depth'] else "  - Bit depth: N/A")
-            log(f"  - Sample rate: {stream_metadata['sample_rate']} Hz" if stream_metadata['sample_rate'] else "  - Sample rate: N/A")
-            log(f"  - Audio mode: {stream_metadata['audio_mode']}")
-            log(f"  - URL: {stream_url[:50]}..." if stream_url and len(stream_url) > 50 else f"  - URL: {stream_url}")
-            log("="*60)
-            return stream_url, stream_metadata
         except Exception as e:
-            log(f"  Response: ERROR - {e}")
+            error_info["error"] = f"Failed to fetch track: {str(e)}"
+            log(f"  Response: ERROR - {error_info['error']}")
             import traceback
             log(traceback.format_exc())
             log("="*60)
-            return None, None
+            return None, None, error_info
+
+        # Try each quality level in order
+        last_error = None
+        for attempt_quality in qualities_to_try:
+            error_info["tried_qualities"].append(attempt_quality)
+            log(f"  - Attempting quality: {attempt_quality}")
+
+            try:
+                # Set quality on the session config
+                if attempt_quality == "max":
+                    self.session.config.quality = tidalapi.Quality.hi_res_lossless
+                    log("    - Session quality set to: HI_RES_LOSSLESS (up to 24bit/192kHz)")
+                elif attempt_quality == "high":
+                    self.session.config.quality = tidalapi.Quality.high_lossless
+                    log("    - Session quality set to: HIGH_LOSSLESS (16bit/44.1kHz)")
+                else:  # low
+                    self.session.config.quality = tidalapi.Quality.low_320k
+                    log("    - Session quality set to: LOW_320K (320kbps AAC)")
+
+                # Get stream - this returns a Stream object with metadata
+                log("    - Requesting stream metadata...")
+                stream = track.get_stream()
+
+                if not stream:
+                    log("    - No stream available at this quality")
+                    last_error = "No stream available"
+                    continue
+
+                # Extract stream metadata
+                stream_metadata = {
+                    "audio_quality": getattr(stream, 'audio_quality', 'Unknown'),
+                    "bit_depth": getattr(stream, 'bit_depth', None),
+                    "sample_rate": getattr(stream, 'sample_rate', None),
+                    "audio_mode": getattr(stream, 'audio_mode', 'Unknown')
+                }
+
+                # Get the actual playback URL from track (not stream)
+                log("    - Requesting playback URL...")
+                stream_url = track.get_url()
+
+                # Success!
+                error_info["actual_quality"] = attempt_quality
+                error_info["fallback_applied"] = (attempt_quality != quality)
+
+                log("  Response: Success - Stream obtained")
+                log(f"  - Audio quality: {stream_metadata['audio_quality']}")
+                log(f"  - Bit depth: {stream_metadata['bit_depth']} bit" if stream_metadata['bit_depth'] else "  - Bit depth: N/A")
+                log(f"  - Sample rate: {stream_metadata['sample_rate']} Hz" if stream_metadata['sample_rate'] else "  - Sample rate: N/A")
+                log(f"  - Audio mode: {stream_metadata['audio_mode']}")
+                log(f"  - URL: {stream_url[:50]}..." if stream_url and len(stream_url) > 50 else f"  - URL: {stream_url}")
+                if error_info["fallback_applied"]:
+                    log(f"  - NOTE: Fallback applied from '{quality}' to '{attempt_quality}'")
+                log("="*60)
+                return stream_url, stream_metadata, error_info
+
+            except Exception as e:
+                error_str = str(e)
+                log(f"    - Error at quality '{attempt_quality}': {error_str}")
+
+                # Check if it's a 401 error (unauthorized - track not available at this quality)
+                if "401" in error_str or "Unauthorized" in error_str:
+                    log(f"    - Track not available at '{attempt_quality}' quality, trying lower quality...")
+                    last_error = f"Not available at {attempt_quality} quality"
+                    continue
+                else:
+                    # Some other error - might be worth trying other qualities
+                    log(f"    - Unexpected error, but continuing to try other qualities...")
+                    last_error = error_str
+                    continue
+
+        # All qualities failed
+        error_info["error"] = last_error or "Track not available at any quality"
+        log(f"  Response: ERROR - {error_info['error']}")
+        log(f"  - Tried qualities: {error_info['tried_qualities']}")
+        log("="*60)
+        return None, None, error_info

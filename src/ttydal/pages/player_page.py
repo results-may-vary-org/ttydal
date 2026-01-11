@@ -72,7 +72,7 @@ class PlayerPage(Container):
         log(f"  - Artist: {event.track_info.get('artist', 'Unknown')}")
 
         log("  - Requesting track URL and metadata from Tidal...")
-        track_url, stream_metadata = self.tidal.get_track_url(
+        track_url, stream_metadata, error_info = self.tidal.get_track_url(
             event.track_id,
             self.config.quality
         )
@@ -96,9 +96,33 @@ class PlayerPage(Container):
                 log(f"  - Updating album indicator for item: {tracks_list.current_item_id}")
                 albums_list = self.query_one(AlbumsList)
                 albums_list.set_playing_item(tracks_list.current_item_id)
+
+            # Show notification if quality fallback was applied
+            if error_info.get("fallback_applied"):
+                requested = error_info.get("requested_quality", "").upper()
+                actual = error_info.get("actual_quality", "").upper()
+                track_name = event.track_info.get('name', 'Track')
+                self.app.notify(
+                    f"{track_name}: Not available at {requested} quality, playing at {actual}",
+                    severity="warning",
+                    timeout=5
+                )
             log("=" * 80)
         else:
             log(f"  - Failed to get track URL or metadata")
+
+            # Show error notification to user
+            track_name = event.track_info.get('name', 'Track')
+            error_msg = error_info.get("error", "Unknown error")
+            tried_qualities = error_info.get("tried_qualities", [])
+
+            if tried_qualities:
+                qualities_str = ", ".join([q.upper() for q in tried_qualities])
+                notification_msg = f"Failed to play '{track_name}': {error_msg} (tried: {qualities_str})"
+            else:
+                notification_msg = f"Failed to play '{track_name}': {error_msg}"
+
+            self.app.notify(notification_msg, severity="error", timeout=10)
             log("=" * 80)
 
     def focus_albums(self) -> None:
