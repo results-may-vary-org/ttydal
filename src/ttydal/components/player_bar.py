@@ -1,7 +1,7 @@
 """Player bar component showing current track and playback progress."""
 
 from textual.app import ComposeResult
-from textual.containers import Container, Horizontal
+from textual.containers import Center, Container, Horizontal, Middle, VerticalGroup
 from textual.widgets import Label, ProgressBar
 
 from ttydal.player import Player
@@ -12,34 +12,13 @@ class PlayerBar(Container):
 
     DEFAULT_CSS = """
     PlayerBar {
-        height: 4;
+        height: 3;
         dock: top;
         background: $panel;
-        border-bottom: solid $primary;
-        padding: 0 1;
-    }
-
-    PlayerBar Label {
-        width: 1fr;
-        content-align: center middle;
     }
 
     PlayerBar #track-info {
         text-style: bold;
-    }
-
-    PlayerBar #time-info {
-        height: 1;
-    }
-
-    PlayerBar #progress-container {
-        width: 1fr;
-        height: auto;
-        align: center middle;
-    }
-
-    PlayerBar #progress {
-        width: 80%;
     }
     """
 
@@ -52,10 +31,14 @@ class PlayerBar(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the player bar UI."""
-        yield Label("No track playing", id="track-info")
-        with Horizontal(id="progress-container"):
-            yield ProgressBar(total=100, show_eta=False, id="progress")
-        yield Label("0:00 / 0:00  |  Quality: N/A", id="time-info")
+        with Center():
+          with Middle():
+            with Center():
+              yield Label("Select a track", id="track-info")
+            with Center():
+              yield ProgressBar(total=100, show_eta=False, id="progress")
+            with Center():
+              yield Label("0:00 / 0:00  |  Quality: N/A", id="time-info")
 
     def on_mount(self) -> None:
         """Set up update interval when mounted."""
@@ -153,3 +136,4 @@ class PlayerBar(Container):
             stream_metadata: Dict with audio_quality, bit_depth, sample_rate, audio_mode
         """
         self.stream_metadata = stream_metadata
+
