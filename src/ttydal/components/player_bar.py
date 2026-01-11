@@ -1,7 +1,7 @@
 """Player bar component showing current track and playback progress."""
 
 from textual.app import ComposeResult
-from textual.containers import Container
+from textual.containers import Container, Horizontal
 from textual.widgets import Label, ProgressBar
 
 from ttydal.player import Player
@@ -32,8 +32,14 @@ class PlayerBar(Container):
         height: 1;
     }
 
-    PlayerBar ProgressBar {
+    PlayerBar #progress-container {
         width: 1fr;
+        height: auto;
+        align: center middle;
+    }
+
+    PlayerBar #progress {
+        width: 80%;
     }
     """
 
@@ -47,7 +53,8 @@ class PlayerBar(Container):
     def compose(self) -> ComposeResult:
         """Compose the player bar UI."""
         yield Label("No track playing", id="track-info")
-        yield ProgressBar(total=100, show_eta=False, id="progress")
+        with Horizontal(id="progress-container"):
+            yield ProgressBar(total=100, show_eta=False, id="progress")
         yield Label("0:00 / 0:00  |  Quality: N/A", id="time-info")
 
     def on_mount(self) -> None:

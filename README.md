@@ -57,6 +57,20 @@ pip install ttydal
    ttydal
    ```
 
+4. For development with auto-reload (optional):
+
+   Install watchdog for automatic restart on file changes:
+   ```bash
+   uv add --dev watchdog
+   ```
+
+   Run with the development watcher:
+   ```bash
+   python dev.py
+   ```
+
+   This will automatically restart the application whenever you save changes to Python files, providing a faster development feedback loop.
+
 ## Getting Started
 
 1. Launch ttydal
