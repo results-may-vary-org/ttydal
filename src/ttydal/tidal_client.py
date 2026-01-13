@@ -3,6 +3,7 @@
 import tidalapi
 from tidalapi.session import Session
 
+from ttydal.api_logger import install_api_logger
 from ttydal.credentials import CredentialManager
 from ttydal.logger import log
 
@@ -25,6 +26,9 @@ class TidalClient:
             return
 
         log("TidalClient.__init__() called")
+        log("  - Installing API logger...")
+        install_api_logger()
+        log("  - API logger installed")
         log("  - Creating tidalapi.Session()...")
         self.session: Session = tidalapi.Session()
         log("  - Session created")
@@ -157,27 +161,54 @@ class TidalClient:
             return []
 
     def get_user_favorites(self) -> list:
-        """Get user's favorite tracks.
+        """Get user's favorite tracks using two-step API call with dynamic limit.
+
+        First calls API with limit=999, then checks totalNumberOfItems.
+        If total > 999, makes second call with limit=totalNumberOfItems.
 
         Returns:
             List of favorite tracks
         """
         log("="*60)
         log("API CALL: get_user_favorites()")
-        log("  Request: session.user.favorites.tracks()")
         if not self.is_logged_in():
             log("  Response: Not logged in, returning []")
             log("="*60)
             return []
+
         try:
-            tracks = list(self.session.user.favorites.tracks())
-            log(f"  Response: Success - {len(tracks)} favorite tracks")
+            # First call with limit=999
+            log("  First API call with limit=999")
+            log("  Request: session.user.favorites.tracks(limit=999)")
+            first_response = self.session.user.favorites.tracks(limit=999)
+
+            # Check if response has totalNumberOfItems
+            total_items = None
+            if hasattr(first_response, 'totalNumberOfItems'):
+                total_items = first_response.totalNumberOfItems
+
+            log(f"  Response metadata: totalNumberOfItems = {total_items}")
+
+            # Determine if we need a second call
+            if total_items is not None and total_items > 999:
+                log(f"  Total items ({total_items}) > 999, making second call with limit={total_items}")
+                log(f"  Request: session.user.favorites.tracks(limit={total_items})")
+                second_response = self.session.user.favorites.tracks(limit=total_items)
+                tracks = list(second_response)
+                log(f"  Response: Success - Retrieved {len(tracks)} favorite tracks (from second call)")
+            else:
+                log(f"  Total items ({total_items if total_items is not None else 'N/A'}) <= 999, using first response")
+                tracks = list(first_response)
+                log(f"  Response: Success - Retrieved {len(tracks)} favorite tracks (from first call)")
+
+            # Log sample tracks
             for idx, track in enumerate(tracks[:3]):  # Log first 3
                 log(f"    [{idx}] {track.name} by {track.artist.name if hasattr(track, 'artist') else 'Unknown'}")
             if len(tracks) > 3:
                 log(f"    ... and {len(tracks) - 3} more")
             log("="*60)
             return tracks
+
         except Exception as e:
             log(f"  Response: ERROR - {e}")
             import traceback
@@ -379,7 +410,7 @@ class TidalClient:
                     continue
                 else:
                     # Some other error - might be worth trying other qualities
-                    log(f"    - Unexpected error, but continuing to try other qualities...")
+                    log("    - Unexpected error, but continuing to try other qualities...")
                     last_error = error_str
                     continue
 
