@@ -1,8 +1,8 @@
 """Config page for application settings."""
 
 from textual.app import ComposeResult
-from textual.containers import Container, Vertical, VerticalScroll
-from textual.widgets import Label, Button, Select
+from textual.containers import Container, Vertical, VerticalScroll, Horizontal
+from textual.widgets import Label, Button, Select, Switch
 from textual.message import Message
 
 from ttydal.config import ConfigManager
@@ -62,6 +62,30 @@ class ConfigPage(Container):
         width: 1fr;
         margin-bottom: 1;
     }
+
+    ConfigPage Horizontal {
+        width: 1fr;
+        height: auto;
+        margin-bottom: 2;
+        align: left middle;
+    }
+
+    ConfigPage Horizontal Label {
+        width: auto;
+        margin-right: 2;
+        margin-bottom: 0;
+    }
+
+    ConfigPage Horizontal Switch {
+        width: auto;
+    }
+
+    ConfigPage .warning-label {
+        color: $warning;
+        text-style: italic;
+        margin-top: 0;
+        margin-bottom: 1;
+    }
     """
 
     class QualityChanged(Message):
@@ -111,9 +135,6 @@ class ConfigPage(Container):
         valid_qualities = ["max", "high", "low"]
         quality_value = self.config.quality if self.config.quality in valid_qualities else "high"
 
-        # Auto-play setting
-        auto_play_value = "on" if self.config.auto_play else "off"
-
         with VerticalScroll():
             with Vertical():
                 yield Label("[b]Settings[/b]", markup=True)
@@ -136,15 +157,9 @@ class ConfigPage(Container):
                     id="quality-select"
                 )
 
-                yield Label("Auto-Play Next Track:")
-                yield Select(
-                    options=[
-                        ("On", "on"),
-                        ("Off", "off")
-                    ],
-                    value=auto_play_value,
-                    id="auto-play-select"
-                )
+                with Horizontal():
+                    yield Label("Auto-Play Next Track:")
+                    yield Switch(value=self.config.auto_play, id="auto-play-switch")
 
                 # Tidal Account section
                 yield Label("")
@@ -154,6 +169,25 @@ class ConfigPage(Container):
                 # Debug section
                 yield Label("")
                 yield Label("[b]Debug[/b]", markup=True)
+
+                with Horizontal():
+                    yield Label("Debug Logging:")
+                    yield Switch(value=self.config.debug_logging_enabled, id="debug-logging-switch")
+                yield Label(
+                    "[i]⚠ Warning: Debug logs can grow large over time. Disable when not needed.[/i]",
+                    markup=True,
+                    classes="warning-label"
+                )
+
+                with Horizontal():
+                    yield Label("API Request Logging:")
+                    yield Switch(value=self.config.api_logging_enabled, id="api-logging-switch")
+                yield Label(
+                    "[i]⚠ Warning: API logs capture full requests/responses and can consume significant disk space.[/i]",
+                    markup=True,
+                    classes="warning-label"
+                )
+
                 yield Button("Clear Debug Logs", variant="warning", id="clear-logs-btn")
 
     def on_select_changed(self, event: Select.Changed) -> None:
@@ -177,10 +211,23 @@ class ConfigPage(Container):
             self.config.quality = quality
             self.post_message(self.QualityChanged(quality))
 
+    def on_switch_changed(self, event: Switch.Changed) -> None:
+        """Handle switch value changes - auto-save all settings.
+
+        Args:
+            event: Switch changed event
+        """
         # Auto-play: save immediately
-        elif event.select.id == "auto-play-select" and event.value:
-            auto_play = str(event.value) == "on"
-            self.config.auto_play = auto_play
+        if event.switch.id == "auto-play-switch":
+            self.config.auto_play = event.value
+
+        # Debug logging: save immediately
+        elif event.switch.id == "debug-logging-switch":
+            self.config.debug_logging_enabled = event.value
+
+        # API logging: save immediately
+        elif event.switch.id == "api-logging-switch":
+            self.config.api_logging_enabled = event.value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """Handle button press events.

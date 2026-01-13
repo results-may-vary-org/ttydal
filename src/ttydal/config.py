@@ -51,7 +51,9 @@ class ConfigManager:
             self._config = {
                 "theme": "textual-dark",
                 "quality": "high",  # high or low
-                "auto_play": True  # auto-play next track when current finishes
+                "auto_play": True,  # auto-play next track when current finishes
+                "debug_logging_enabled": True,  # enable debug logging to ~/.ttydal/debug.log
+                "api_logging_enabled": True  # enable API request/response logging to ~/.ttydal/debug-api.log
             }
             self._save_config()
             log(f"  - Default config created: {self._config}")
@@ -101,3 +103,23 @@ class ConfigManager:
     def auto_play(self, value: bool) -> None:
         """Set the auto-play setting."""
         self.set("auto_play", value)
+
+    @property
+    def debug_logging_enabled(self) -> bool:
+        """Get the debug logging enabled setting."""
+        return self.get("debug_logging_enabled", True)
+
+    @debug_logging_enabled.setter
+    def debug_logging_enabled(self, value: bool) -> None:
+        """Set the debug logging enabled setting."""
+        self.set("debug_logging_enabled", value)
+
+    @property
+    def api_logging_enabled(self) -> bool:
+        """Get the API logging enabled setting."""
+        return self.get("api_logging_enabled", True)
+
+    @api_logging_enabled.setter
+    def api_logging_enabled(self, value: bool) -> None:
+        """Set the API logging enabled setting."""
+        self.set("api_logging_enabled", value)

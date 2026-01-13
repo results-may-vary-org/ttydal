@@ -166,6 +166,17 @@ class APILogger:
             response_body: Response body content (NOT TRUNCATED)
             elapsed_time: Request duration in seconds
         """
+        # Check if API logging is enabled
+        try:
+            # Import here to avoid circular dependency
+            from ttydal.config import ConfigManager
+            config = ConfigManager()
+            if not config.api_logging_enabled:
+                return
+        except Exception:
+            # If config check fails, continue logging (fail-safe)
+            pass
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         log_entry = []

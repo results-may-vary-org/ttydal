@@ -55,6 +55,17 @@ class DebugLogger:
             *args: Arguments to log (like print)
             **kwargs: Keyword arguments (like print)
         """
+        # Check if debug logging is enabled
+        try:
+            # Import here to avoid circular dependency
+            from ttydal.config import ConfigManager
+            config = ConfigManager()
+            if not config.debug_logging_enabled:
+                return
+        except Exception:
+            # If config check fails, continue logging (fail-safe)
+            pass
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
         message = " ".join(str(arg) for arg in args)
         log_line = f"[{timestamp}] {message}\n"
