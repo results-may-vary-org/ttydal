@@ -78,7 +78,7 @@ class PlayerPage(Container):
         )
 
         if track_url and stream_metadata:
-            log(f"  - Got track URL, calling player.play()")
+            log("  - Got track URL, calling player.play()")
 
             # Add stream metadata to track info
             track_info_with_metadata = event.track_info.copy()
@@ -109,7 +109,7 @@ class PlayerPage(Container):
                 )
             log("=" * 80)
         else:
-            log(f"  - Failed to get track URL or metadata")
+            log("  - Failed to get track URL or metadata")
 
             # Show error notification to user
             track_name = event.track_info.get('name', 'Track')

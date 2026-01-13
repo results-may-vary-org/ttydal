@@ -64,7 +64,7 @@ class AlbumsList(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the albums list UI."""
-        yield Label("Albums & Playlists")
+        yield Label("(a)lbums & playlists")
         yield ListView(id="albums-listview")
 
     def on_mount(self) -> None:
@@ -100,7 +100,7 @@ class AlbumsList(Container):
         log("AlbumsList.load_albums() called")
         # Show loading in header
         header = self.query_one(Label)
-        header.update("Albums & Playlists (Loading...)")
+        header.update("(a)lbums & playlists (loading...)")
         # Clear list immediately (synchronously) to prevent display issues
         list_view = self.query_one("#albums-listview", ListView)
         list_view.remove_children()
@@ -132,7 +132,7 @@ class AlbumsList(Container):
             track_count = getattr(playlist, 'num_tracks', None)
             if track_count is None:
                 track_count = '?'
-            display_name = f"🎵 {playlist_name} ({track_count} tracks)"
+            display_name = f"{playlist_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
             self.albums.append({
                 "id": str(playlist.id),
@@ -151,7 +151,7 @@ class AlbumsList(Container):
             track_count = getattr(album, 'num_tracks', None)
             if track_count is None:
                 track_count = '?'
-            display_name = f"💿 {album_name} ({track_count} tracks)"
+            display_name = f"{album_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
             self.albums.append({
                 "id": str(album.id),
@@ -164,7 +164,7 @@ class AlbumsList(Container):
 
         # Update header to remove loading text
         header = self.query_one(Label)
-        header.update("Albums & Playlists")
+        header.update("(a)lbums & playlists")
 
         # Update visual indicators (in case we're reloading while something is playing)
         self._update_album_indicators()
@@ -198,11 +198,11 @@ class AlbumsList(Container):
 
                     # Format display based on type
                     if item_type == "favorites":
-                        display_name = f"{prefix}{item_name} ({item_count} tracks)"
+                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
                     elif item_type == "playlist":
-                        display_name = f"{prefix}🎵 {item_name} ({item_count} tracks)"
+                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
                     else:  # album
-                        display_name = f"{prefix}💿 {item_name} ({item_count} tracks)"
+                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
 
                     label = list_item.query_one(Label)
                     label.update(display_name)
@@ -228,3 +228,4 @@ class AlbumsList(Container):
                 self.post_message(
                     self.AlbumSelected(item["id"], item["name"], item["type"])
                 )
+

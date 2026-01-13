@@ -67,7 +67,7 @@ class TracksList(Container):
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
-        yield Label("Tracks")
+        yield Label("(t)racks")
         yield ListView(id="tracks-listview")
 
     def on_mount(self) -> None:
@@ -134,7 +134,7 @@ class TracksList(Container):
 
         # Update header to show loading
         header = self.query_one(Label)
-        header.update(f"Tracks - {item_name} (Loading...)")
+        header.update(f"(t)racks - {item_name} (Loading...)")
 
         # Clear the list and start loading in a worker
         list_view = self.query_one("#tracks-listview", ListView)
@@ -191,7 +191,7 @@ class TracksList(Container):
 
         # Update header to remove loading text
         header = self.query_one(Label)
-        header.update(f"Tracks - {item_name}")
+        header.update(f"(t)racks - {item_name}")
 
         # Update visual indicators (in case we're reloading while a track is playing)
         self._update_track_indicators()
@@ -265,15 +265,15 @@ class TracksList(Container):
 
         if current_track and current_track.get('id') == selected_track['id']:
             # Same track is selected and playing, toggle pause
-            log(f"  - Same track already playing, toggling pause")
+            log("  - Same track already playing, toggling pause")
             player.toggle_pause()
             log("=" * 80)
         else:
             # Different track or no track playing, play the selected track
             if current_track:
-                log(f"  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track")
+                log("  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track")
             else:
-                log(f"  - No track playing, starting playback")
+                log("  - No track playing, starting playback")
 
             # Update current playing index
             self.current_playing_index = index
@@ -283,7 +283,7 @@ class TracksList(Container):
             self._update_track_indicators()
             log("  - Updated visual indicators")
 
-            log(f"  - Posting TrackSelected message")
+            log("  - Posting TrackSelected message")
             self.post_message(
                 self.TrackSelected(selected_track["id"], selected_track)
             )
@@ -320,7 +320,7 @@ class TracksList(Container):
             if index is not None and index < len(self.tracks):
                 track = self.tracks[index]
                 log(f"  - Selected track: {track['name']} (ID: {track['id']})")
-                log(f"  - Playing/restarting track (Enter always plays)")
+                log("  - Playing/restarting track (Enter always plays)")
 
                 # Update current playing index for auto-play tracking
                 self.current_playing_index = index
@@ -330,8 +330,9 @@ class TracksList(Container):
                 self._update_track_indicators()
                 log("  - Updated visual indicators")
 
-                log(f"  - Posting TrackSelected message")
+                log("  - Posting TrackSelected message")
                 self.post_message(
                     self.TrackSelected(track["id"], track)
                 )
                 log("=" * 80)
+

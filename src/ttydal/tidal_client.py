@@ -7,6 +7,8 @@ from ttydal.api_logger import install_api_logger
 from ttydal.credentials import CredentialManager
 from ttydal.logger import log
 
+from operator import attrgetter
+import json
 
 class TidalClient:
     """Singleton Tidal API client wrapper."""
@@ -207,6 +209,9 @@ class TidalClient:
             if len(tracks) > 3:
                 log(f"    ... and {len(tracks) - 3} more")
             log("="*60)
+
+            # sort by date
+            tracks.sort(key=lambda t: t.user_date_added, reverse=True)
             return tracks
 
         except Exception as e:

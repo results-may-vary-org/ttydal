@@ -71,11 +71,11 @@ class TtydalApp(App):
 
         try:
             with TabbedContent(initial="player-tab"):
-                with TabPane("Player", id="player-tab"):
+                with TabPane("(p)layer", id="player-tab"):
                     log("    - Yielding PlayerPage...")
                     yield PlayerPage()
                     log("    - PlayerPage yielded")
-                with TabPane("Config", id="config-tab"):
+                with TabPane("(c)onfig", id="config-tab"):
                     log("    - Yielding ConfigPage...")
                     yield ConfigPage()
                     log("    - ConfigPage yielded")
