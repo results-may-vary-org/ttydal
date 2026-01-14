@@ -10,6 +10,7 @@ import asyncio
 from ttydal.config import ConfigManager
 from ttydal.exceptions import TidalServiceError, DataFetchError
 from ttydal.logger import log
+from ttydal.services.playback_service import PlaybackService, PlaybackResult
 
 
 class AlbumsService:
@@ -31,9 +32,7 @@ class AlbumsService:
         """
         try:
             loop = asyncio.get_event_loop()
-            favorites = await loop.run_in_executor(
-                None, self.tidal.get_user_favorites
-            )
+            favorites = await loop.run_in_executor(None, self.tidal.get_user_favorites)
             count = len(favorites)
             return {
                 "id": "favorites",
@@ -53,17 +52,17 @@ class AlbumsService:
         """
         try:
             loop = asyncio.get_event_loop()
-            playlists = await loop.run_in_executor(
-                None, self.tidal.get_user_playlists
-            )
+            playlists = await loop.run_in_executor(None, self.tidal.get_user_playlists)
             result = []
             for playlist in playlists:
-                result.append({
-                    "id": playlist.id,
-                    "name": playlist.name,
-                    "type": "playlist",
-                    "count": playlist.num_tracks,
-                })
+                result.append(
+                    {
+                        "id": playlist.id,
+                        "name": playlist.name,
+                        "type": "playlist",
+                        "count": playlist.num_tracks,
+                    }
+                )
             return result
         except Exception as e:
             log(f"AlbumsService.get_user_playlists error: {e}")
@@ -77,17 +76,17 @@ class AlbumsService:
         """
         try:
             loop = asyncio.get_event_loop()
-            albums = await loop.run_in_executor(
-                None, self.tidal.get_user_albums
-            )
+            albums = await loop.run_in_executor(None, self.tidal.get_user_albums)
             result = []
             for album in albums:
-                result.append({
-                    "id": album.id,
-                    "name": f"{album.name} - {album.artist.name}",
-                    "type": "album",
-                    "count": album.num_tracks,
-                })
+                result.append(
+                    {
+                        "id": album.id,
+                        "name": f"{album.name} - {album.artist.name}",
+                        "type": "album",
+                        "count": album.num_tracks,
+                    }
+                )
             return result
         except Exception as e:
             log(f"AlbumsService.get_user_albums error: {e}")
@@ -115,20 +114,20 @@ class TracksService:
         try:
             loop = asyncio.get_event_loop()
             # get_user_favorites() already returns sorted by date
-            favorites = await loop.run_in_executor(
-                None, self.tidal.get_user_favorites
-            )
+            favorites = await loop.run_in_executor(None, self.tidal.get_user_favorites)
 
             result = []
             for idx, track in enumerate(favorites, 1):
-                result.append({
-                    "id": str(track.id),
-                    "name": track.name,
-                    "artist": track.artist.name,
-                    "album": track.album.name,
-                    "duration": track.duration,
-                    "index": idx,
-                })
+                result.append(
+                    {
+                        "id": str(track.id),
+                        "name": track.name,
+                        "artist": track.artist.name,
+                        "album": track.album.name,
+                        "duration": track.duration,
+                        "index": idx,
+                    }
+                )
             return result
         except Exception as e:
             log(f"TracksService.get_favorites_tracks error: {e}")
@@ -151,14 +150,16 @@ class TracksService:
 
             result = []
             for idx, track in enumerate(tracks, 1):
-                result.append({
-                    "id": str(track.id),
-                    "name": track.name,
-                    "artist": track.artist.name,
-                    "album": track.album.name,
-                    "duration": track.duration,
-                    "index": idx,
-                })
+                result.append(
+                    {
+                        "id": str(track.id),
+                        "name": track.name,
+                        "artist": track.artist.name,
+                        "album": track.album.name,
+                        "duration": track.duration,
+                        "index": idx,
+                    }
+                )
             return result
         except Exception as e:
             log(f"TracksService.get_playlist_tracks error: {e}")
@@ -181,14 +182,16 @@ class TracksService:
 
             result = []
             for idx, track in enumerate(tracks, 1):
-                result.append({
-                    "id": str(track.id),
-                    "name": track.name,
-                    "artist": track.artist.name,
-                    "album": track.album.name,
-                    "duration": track.duration,
-                    "index": idx,
-                })
+                result.append(
+                    {
+                        "id": str(track.id),
+                        "name": track.name,
+                        "artist": track.artist.name,
+                        "album": track.album.name,
+                        "duration": track.duration,
+                        "index": idx,
+                    }
+                )
             return result
         except Exception as e:
             log(f"TracksService.get_album_tracks error: {e}")
@@ -196,4 +199,11 @@ class TracksService:
 
 
 # Export services and exceptions
-__all__ = ["AlbumsService", "TracksService", "TidalServiceError", "DataFetchError"]
+__all__ = [
+    "AlbumsService",
+    "TracksService",
+    "PlaybackService",
+    "PlaybackResult",
+    "TidalServiceError",
+    "DataFetchError",
+]

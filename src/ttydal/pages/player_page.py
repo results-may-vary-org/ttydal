@@ -9,6 +9,7 @@ from ttydal.components.tracks_list import TracksList
 from ttydal.player import Player
 from ttydal.tidal_client import TidalClient
 from ttydal.config import ConfigManager
+from ttydal.services import PlaybackService
 
 
 class PlayerPage(Container):
@@ -32,6 +33,7 @@ class PlayerPage(Container):
         self.player = Player()
         self.tidal = TidalClient()
         self.config = ConfigManager()
+        self.playback_service = PlaybackService(self.tidal, self.player)
 
     def compose(self) -> ComposeResult:
         """Compose the player page UI."""
@@ -45,9 +47,7 @@ class PlayerPage(Container):
         player_bar = self.query_one(PlayerBar)
         player_bar.update_quality_display(self.config.quality)
 
-    def on_albums_list_album_selected(
-        self, event: AlbumsList.AlbumSelected
-    ) -> None:
+    def on_albums_list_album_selected(self, event: AlbumsList.AlbumSelected) -> None:
         """Handle album or playlist selection.
 
         Args:
@@ -56,65 +56,57 @@ class PlayerPage(Container):
         tracks_list = self.query_one(TracksList)
         tracks_list.load_tracks(event.item_id, event.item_name, event.item_type)
 
-    def on_tracks_list_track_selected(
-        self, event: TracksList.TrackSelected
-    ) -> None:
+    def on_tracks_list_track_selected(self, event: TracksList.TrackSelected) -> None:
         """Handle track selection and start playback.
 
         Args:
             event: Track selection event
         """
         from ttydal.logger import log
+
         log("=" * 80)
         log("PlayerPage.on_tracks_list_track_selected() - Message received")
         log(f"  - Track: {event.track_info.get('name', 'Unknown')}")
         log(f"  - Track ID: {event.track_id}")
         log(f"  - Artist: {event.track_info.get('artist', 'Unknown')}")
 
-        log("  - Requesting track URL and metadata from Tidal...")
-        track_url, stream_metadata, error_info = self.tidal.get_track_url(
-            event.track_id,
-            self.config.quality
+        # Use PlaybackService to handle playback
+        result = self.playback_service.play_track(
+            event.track_id, event.track_info, self.config.quality
         )
 
-        if track_url and stream_metadata:
-            log("  - Got track URL, calling player.play()")
-
-            # Add stream metadata to track info
-            track_info_with_metadata = event.track_info.copy()
-            track_info_with_metadata['stream_metadata'] = stream_metadata
-
-            self.player.play(track_url, track_info_with_metadata)
-
+        if result.success:
             # Update player bar with actual stream quality
             player_bar = self.query_one(PlayerBar)
-            player_bar.update_stream_quality(stream_metadata)
+            player_bar.update_stream_quality(result.stream_metadata)
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)
             if tracks_list.current_item_id:
-                log(f"  - Updating album indicator for item: {tracks_list.current_item_id}")
+                log(
+                    f"  - Updating album indicator for item: {tracks_list.current_item_id}"
+                )
                 albums_list = self.query_one(AlbumsList)
                 albums_list.set_playing_item(tracks_list.current_item_id)
 
             # Show notification if quality fallback was applied
-            if error_info.get("fallback_applied"):
-                requested = error_info.get("requested_quality", "").upper()
-                actual = error_info.get("actual_quality", "").upper()
-                track_name = event.track_info.get('name', 'Track')
+            if result.fallback_applied:
+                requested = (result.requested_quality or "").upper()
+                actual = (result.actual_quality or "").upper()
+                track_name = event.track_info.get("name", "Track")
                 self.app.notify(
                     f"{track_name}: Not available at {requested} quality, playing at {actual}",
                     severity="warning",
-                    timeout=5
+                    timeout=5,
                 )
             log("=" * 80)
         else:
             log("  - Failed to get track URL or metadata")
 
             # Show error notification to user
-            track_name = event.track_info.get('name', 'Track')
-            error_msg = error_info.get("error", "Unknown error")
-            tried_qualities = error_info.get("tried_qualities", [])
+            track_name = event.track_info.get("name", "Track")
+            error_msg = result.error_message or "Unknown error"
+            tried_qualities = result.tried_qualities or []
 
             if tried_qualities:
                 qualities_str = ", ".join([q.upper() for q in tried_qualities])
@@ -140,6 +132,7 @@ class PlayerPage(Container):
     def toggle_playback(self) -> None:
         """Toggle play/pause."""
         from ttydal.logger import log
+
         log("PlayerPage.toggle_playback() called")
         self.player.toggle_pause()
 
