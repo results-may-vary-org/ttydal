@@ -5,6 +5,7 @@ from textual.containers import Center, Container, Horizontal, Middle, VerticalGr
 from textual.widgets import Label, ProgressBar
 
 from ttydal.player import Player
+from ttydal.config import ConfigManager
 
 
 class PlayerBar(Container):
@@ -26,6 +27,7 @@ class PlayerBar(Container):
         """Initialize the player bar."""
         super().__init__()
         self.player = Player()
+        self.config = ConfigManager()
         self.quality = "N/A"
         self.stream_metadata = None
 
@@ -91,6 +93,28 @@ class PlayerBar(Container):
 
         return " ".join(parts) if parts else "N/A"
 
+    def _format_status_indicators(self) -> str:
+        """Format status indicators for shuffle and auto-play.
+
+        Returns:
+            Formatted string with colored status indicators
+        """
+        indicators = []
+
+        # Shuffle indicator
+        if self.config.shuffle:
+            indicators.append("[green]⏺[/green] Shuffle")
+        else:
+            indicators.append("[dim]⏺[/dim] Shuffle")
+
+        # Auto-play indicator
+        if self.config.auto_play:
+            indicators.append("[green]⏺[/green] Auto")
+        else:
+            indicators.append("[dim]⏺[/dim] Auto")
+
+        return "  ".join(indicators)
+
     def update_display(self) -> None:
         """Update the player bar display."""
         track = self.player.get_current_track()
@@ -111,15 +135,17 @@ class PlayerBar(Container):
 
             if duration > 0:
                 progress_bar.update(total=duration, progress=time_pos)
-                # Show time and quality with detailed stream info
+                # Show time, quality, and status indicators
                 time_str = f"{self._format_time(time_pos)} / {self._format_time(duration)}"
                 quality_str = self._format_quality()
-                time_label.update(f"{time_str}  |  {quality_str}")
+                status_str = self._format_status_indicators()
+                time_label.update(f"{time_str}  |  {quality_str}  |  {status_str}")
         else:
             track_label.update("No track playing")
             progress_bar.update(total=100, progress=0)
             quality_str = self._format_quality()
-            time_label.update(f"0:00 / 0:00  |  {quality_str}")
+            status_str = self._format_status_indicators()
+            time_label.update(f"0:00 / 0:00  |  {quality_str}  |  {status_str}")
 
     def update_quality_display(self, quality: str) -> None:
         """Update quality display.
