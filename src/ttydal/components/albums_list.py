@@ -7,6 +7,7 @@ from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
+from ttydal.services import AlbumsService
 from ttydal.logger import log
 
 
@@ -59,6 +60,7 @@ class AlbumsList(Container):
         """Initialize the albums list."""
         super().__init__()
         self.tidal = TidalClient()
+        self.albums_service = AlbumsService(self.tidal)
         self.albums = []
         self.current_playing_item_id = None
 
@@ -88,9 +90,7 @@ class AlbumsList(Container):
             # Trigger selection event
             self.post_message(
                 self.AlbumSelected(
-                    self.albums[0]["id"],
-                    self.albums[0]["name"],
-                    self.albums[0]["type"]
+                    self.albums[0]["id"], self.albums[0]["name"], self.albums[0]["type"]
                 )
             )
             log("  - My Tracks auto-selected")
@@ -117,48 +117,59 @@ class AlbumsList(Container):
         # Add "My Tracks" as first item - get actual favorite track count
         list_view = self.query_one("#albums-listview", ListView)
         log("  - Getting favorite tracks count...")
-        favorite_tracks = self.tidal.get_user_favorites()
-        fav_count = len(favorite_tracks)
+        favorites_info = await self.albums_service.get_favorites_info()
+        fav_count = favorites_info["count"]
         log(f"  - Found {fav_count} favorite tracks")
         list_view.append(ListItem(Label(f"My Tracks ({fav_count} tracks)")))
-        self.albums = [{"id": "favorites", "name": "My Tracks", "type": "favorites", "count": fav_count}]
+        self.albums = [
+            {
+                "id": "favorites",
+                "name": "My Tracks",
+                "type": "favorites",
+                "count": fav_count,
+            }
+        ]
 
         # Load user playlists
         log("  - Loading playlists...")
-        user_playlists = self.tidal.get_user_playlists()
+        user_playlists = await self.albums_service.get_user_playlists()
         for playlist in user_playlists:
-            playlist_name = playlist.name
+            playlist_name = playlist["name"]
             # Get track count - check for None explicitly to handle 0 correctly
-            track_count = getattr(playlist, 'num_tracks', None)
+            track_count = playlist.get("count")
             if track_count is None:
-                track_count = '?'
+                track_count = "?"
             display_name = f"{playlist_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
-            self.albums.append({
-                "id": str(playlist.id),
-                "name": playlist_name,
-                "type": "playlist",
-                "count": track_count
-            })
+            self.albums.append(
+                {
+                    "id": str(playlist["id"]),
+                    "name": playlist_name,
+                    "type": "playlist",
+                    "count": track_count,
+                }
+            )
         log(f"  - Loaded {len(user_playlists)} playlists")
 
         # Load user albums
         log("  - Loading albums...")
-        user_albums = self.tidal.get_user_albums()
+        user_albums = await self.albums_service.get_user_albums()
         for album in user_albums:
-            album_name = album.name
+            album_name = album["name"]
             # Get track count - check for None explicitly to handle 0 correctly
-            track_count = getattr(album, 'num_tracks', None)
+            track_count = album.get("count")
             if track_count is None:
-                track_count = '?'
+                track_count = "?"
             display_name = f"{album_name} ({track_count} tracks)"
             list_view.append(ListItem(Label(display_name)))
-            self.albums.append({
-                "id": str(album.id),
-                "name": album_name,
-                "type": "album",
-                "count": track_count
-            })
+            self.albums.append(
+                {
+                    "id": str(album["id"]),
+                    "name": album_name,
+                    "type": "album",
+                    "count": track_count,
+                }
+            )
         log(f"  - Loaded {len(user_albums)} albums")
         log(f"  - Total items in list: {len(self.albums)}")
 
@@ -194,7 +205,9 @@ class AlbumsList(Container):
                     item_count = item["count"]
 
                     # Add ">" prefix if this is the currently playing item
-                    prefix = "> " if item["id"] == self.current_playing_item_id else "  "
+                    prefix = (
+                        "> " if item["id"] == self.current_playing_item_id else "  "
+                    )
 
                     # Format display based on type
                     if item_type == "favorites":
@@ -224,8 +237,9 @@ class AlbumsList(Container):
             index = event.list_view.index
             if index is not None and index < len(self.albums):
                 item = self.albums[index]
-                log(f"AlbumsList: Item selected - {item['name']} (type: {item['type']})")
+                log(
+                    f"AlbumsList: Item selected - {item['name']} (type: {item['type']})"
+                )
                 self.post_message(
                     self.AlbumSelected(item["id"], item["name"], item["type"])
                 )
-

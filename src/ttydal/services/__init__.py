@@ -4,11 +4,8 @@ This module separates data fetching logic from UI components,
 providing clean architecture and better maintainability.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any
 import asyncio
-
-# Handle tidalapi imports properly - import at runtime to handle older versions
-import tidalapi
 
 from ttydal.config import ConfigManager
 from ttydal.exceptions import TidalServiceError, DataFetchError
@@ -35,9 +32,9 @@ class AlbumsService:
         try:
             loop = asyncio.get_event_loop()
             favorites = await loop.run_in_executor(
-                None, lambda: self.tidal.get_session().user.favorites.tracks()
+                None, self.tidal.get_user_favorites
             )
-            count = len(list(favorites))
+            count = len(favorites)
             return {
                 "id": "favorites",
                 "name": "My Tracks",
@@ -57,7 +54,7 @@ class AlbumsService:
         try:
             loop = asyncio.get_event_loop()
             playlists = await loop.run_in_executor(
-                None, lambda: self.tidal.get_session().user.playlists()
+                None, self.tidal.get_user_playlists
             )
             result = []
             for playlist in playlists:
@@ -81,7 +78,7 @@ class AlbumsService:
         try:
             loop = asyncio.get_event_loop()
             albums = await loop.run_in_executor(
-                None, lambda: self.tidal.get_session().user.favorites.albums()
+                None, self.tidal.get_user_albums
             )
             result = []
             for album in albums:
@@ -117,13 +114,10 @@ class TracksService:
         """
         try:
             loop = asyncio.get_event_loop()
+            # get_user_favorites() already returns sorted by date
             favorites = await loop.run_in_executor(
-                None, lambda: list(self.tidal.get_session().user.favorites.tracks())
+                None, self.tidal.get_user_favorites
             )
-
-            # Sort by added date if available (newest first)
-            if hasattr(favorites[0] if favorites else None, 'user_date_added'):
-                favorites.sort(key=lambda t: t.user_date_added if hasattr(t, 'user_date_added') else '', reverse=True)
 
             result = []
             for idx, track in enumerate(favorites, 1):
@@ -151,10 +145,9 @@ class TracksService:
         """
         try:
             loop = asyncio.get_event_loop()
-            playlist = await loop.run_in_executor(
-                None, lambda: self.tidal.get_session().playlist(playlist_id)
+            tracks = await loop.run_in_executor(
+                None, lambda: self.tidal.get_playlist_tracks(playlist_id)
             )
-            tracks = await loop.run_in_executor(None, lambda: playlist.tracks())
 
             result = []
             for idx, track in enumerate(tracks, 1):
@@ -182,10 +175,9 @@ class TracksService:
         """
         try:
             loop = asyncio.get_event_loop()
-            album = await loop.run_in_executor(
-                None, lambda: self.tidal.get_session().album(album_id)
+            tracks = await loop.run_in_executor(
+                None, lambda: self.tidal.get_album_tracks(album_id)
             )
-            tracks = await loop.run_in_executor(None, lambda: album.tracks())
 
             result = []
             for idx, track in enumerate(tracks, 1):

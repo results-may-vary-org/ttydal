@@ -9,6 +9,7 @@ from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
+from ttydal.services import TracksService
 from ttydal.logger import log
 
 
@@ -60,6 +61,7 @@ class TracksList(Container):
         """Initialize the tracks list."""
         super().__init__()
         self.tidal = TidalClient()
+        self.tracks_service = TracksService(self.tidal)
         self.tracks = []
         self.current_album_name = ""
         self.current_item_id = None
@@ -80,6 +82,7 @@ class TracksList(Container):
         # Register callback for track end events
         if not self._track_end_callback_registered:
             from ttydal.player import Player
+
             player = Player()
             player.register_callback("on_track_end", self._on_track_end)
             self._track_end_callback_registered = True
@@ -92,6 +95,7 @@ class TracksList(Container):
 
         # Check if auto-play is enabled
         from ttydal.config import ConfigManager
+
         config = ConfigManager()
         if not config.auto_play:
             log("  - Auto-play disabled, doing nothing")
@@ -107,7 +111,9 @@ class TracksList(Container):
         # Get next track index (respects shuffle mode)
         next_index = self._get_next_track_index()
         next_track = self.tracks[next_index]
-        log(f"  - Playing next: {next_track['name']} (index {next_index}/{len(self.tracks)-1})")
+        log(
+            f"  - Playing next: {next_track['name']} (index {next_index}/{len(self.tracks) - 1})"
+        )
 
         # Update state
         self.current_playing_index = next_index
@@ -136,12 +142,17 @@ class TracksList(Container):
         random.shuffle(self.shuffled_indices)
 
         # If currently playing, put the current track at position 0
-        if self.current_playing_index is not None and self.current_playing_index in self.shuffled_indices:
+        if (
+            self.current_playing_index is not None
+            and self.current_playing_index in self.shuffled_indices
+        ):
             self.shuffled_indices.remove(self.current_playing_index)
             self.shuffled_indices.insert(0, self.current_playing_index)
             self.shuffle_position = 0
 
-        log(f"TracksList: Generated shuffle order: {self.shuffled_indices[:5]}... (showing first 5)")
+        log(
+            f"TracksList: Generated shuffle order: {self.shuffled_indices[:5]}... (showing first 5)"
+        )
 
     def on_shuffle_changed(self, enabled: bool) -> None:
         """Handle shuffle setting change.
@@ -159,13 +170,16 @@ class TracksList(Container):
     def _get_next_track_index(self) -> int:
         """Get the next track index, respecting shuffle mode."""
         from ttydal.config import ConfigManager
+
         config = ConfigManager()
 
         if config.shuffle and self.shuffled_indices:
             # Find current position in shuffle order
             if self.current_playing_index is not None:
                 try:
-                    self.shuffle_position = self.shuffled_indices.index(self.current_playing_index)
+                    self.shuffle_position = self.shuffled_indices.index(
+                        self.current_playing_index
+                    )
                 except ValueError:
                     self.shuffle_position = 0
 
@@ -182,13 +196,16 @@ class TracksList(Container):
     def _get_previous_track_index(self) -> int:
         """Get the previous track index, respecting shuffle mode."""
         from ttydal.config import ConfigManager
+
         config = ConfigManager()
 
         if config.shuffle and self.shuffled_indices:
             # Find current position in shuffle order
             if self.current_playing_index is not None:
                 try:
-                    self.shuffle_position = self.shuffled_indices.index(self.current_playing_index)
+                    self.shuffle_position = self.shuffled_indices.index(
+                        self.current_playing_index
+                    )
                 except ValueError:
                     self.shuffle_position = 0
 
@@ -202,7 +219,9 @@ class TracksList(Container):
                 return len(self.tracks) - 1
             return (self.current_playing_index - 1) % len(self.tracks)
 
-    def load_tracks(self, item_id: str, item_name: str, item_type: str = "album") -> None:
+    def load_tracks(
+        self, item_id: str, item_name: str, item_type: str = "album"
+    ) -> None:
         """Load ALL tracks for a specific album or playlist.
 
         Args:
@@ -225,9 +244,13 @@ class TracksList(Container):
         self.tracks = []
 
         # Run the loading in a worker so UI can update
-        self.run_worker(self._load_tracks_async(item_id, item_name, item_type), exclusive=False)
+        self.run_worker(
+            self._load_tracks_async(item_id, item_name, item_type), exclusive=False
+        )
 
-    async def _load_tracks_async(self, item_id: str, item_name: str, item_type: str) -> None:
+    async def _load_tracks_async(
+        self, item_id: str, item_name: str, item_type: str
+    ) -> None:
         """Async worker to load tracks without blocking UI.
 
         Args:
@@ -239,36 +262,38 @@ class TracksList(Container):
         log(f"  - Loading tracks for type: {item_type}")
         if item_type == "favorites":
             # Load favorite tracks
-            tracks_list = self.tidal.get_user_favorites()
+            tracks_list = await self.tracks_service.get_favorites_tracks()
         elif item_type == "playlist":
             # Load playlist tracks
-            tracks_list = self.tidal.get_playlist_tracks(item_id)
+            tracks_list = await self.tracks_service.get_playlist_tracks(item_id)
         else:  # album
             # Load album tracks
-            tracks_list = self.tidal.get_album_tracks(item_id)
+            tracks_list = await self.tracks_service.get_album_tracks(item_id)
 
         log(f"  - Retrieved {len(tracks_list)} tracks")
 
         # Populate ALL tracks
         list_view = self.query_one("#tracks-listview", ListView)
         for idx, track in enumerate(tracks_list, 1):
-            track_name = track.name
-            artist = track.artist.name if hasattr(track, 'artist') else "Unknown"
-            duration = self._format_duration(track.duration)
+            track_name = track["name"]
+            artist = track.get("artist", "Unknown")
+            duration = self._format_duration(track["duration"])
 
             # Get album name from track or use the current item name
-            album_name = track.album.name if hasattr(track, 'album') and hasattr(track.album, 'name') else item_name
+            album_name = track.get("album", item_name)
 
             list_view.append(
                 ListItem(Label(f"{idx}. {track_name} - {artist} ({duration})"))
             )
-            self.tracks.append({
-                "id": str(track.id),
-                "name": track_name,
-                "artist": artist,
-                "album": album_name,
-                "duration": track.duration
-            })
+            self.tracks.append(
+                {
+                    "id": str(track["id"]),
+                    "name": track_name,
+                    "artist": artist,
+                    "album": album_name,
+                    "duration": track["duration"],
+                }
+            )
 
         log(f"  - Populated {len(self.tracks)} tracks in UI")
 
@@ -278,6 +303,7 @@ class TracksList(Container):
 
         # Regenerate shuffle order if shuffle is enabled
         from ttydal.config import ConfigManager
+
         config = ConfigManager()
         if config.shuffle:
             self._generate_shuffle_order()
@@ -312,7 +338,9 @@ class TracksList(Container):
                     # Add ">" prefix if this is the currently playing track
                     prefix = "> " if idx == self.current_playing_index else "  "
                     label = list_item.query_one(Label)
-                    label.update(f"{prefix}{idx + 1}. {track_name} - {artist} ({duration})")
+                    label.update(
+                        f"{prefix}{idx + 1}. {track_name} - {artist} ({duration})"
+                    )
         except Exception as e:
             log(f"  - Error updating track indicators: {e}")
 
@@ -337,22 +365,30 @@ class TracksList(Container):
             log("  - No track selected, toggling pause/play")
             # No track selected, toggle pause on whatever is playing
             from ttydal.player import Player
+
             player = Player()
             player.toggle_pause()
             log("=" * 80)
             return
 
         selected_track = self.tracks[index]
-        log(f"  - Selected track: {selected_track['name']} (ID: {selected_track['id']})")
+        log(
+            f"  - Selected track: {selected_track['name']} (ID: {selected_track['id']})"
+        )
 
         # Get currently playing track
         from ttydal.player import Player
+
         player = Player()
         current_track = player.get_current_track()
-        log(f"  - Current playing track: {current_track.get('name', 'Unknown') if current_track else 'None'}")
-        log(f"  - Current playing track ID: {current_track.get('id', 'Unknown') if current_track else 'None'}")
+        log(
+            f"  - Current playing track: {current_track.get('name', 'Unknown') if current_track else 'None'}"
+        )
+        log(
+            f"  - Current playing track ID: {current_track.get('id', 'Unknown') if current_track else 'None'}"
+        )
 
-        if current_track and current_track.get('id') == selected_track['id']:
+        if current_track and current_track.get("id") == selected_track["id"]:
             # Same track is selected and playing, toggle pause
             log("  - Same track already playing, toggling pause")
             player.toggle_pause()
@@ -360,7 +396,9 @@ class TracksList(Container):
         else:
             # Different track or no track playing, play the selected track
             if current_track:
-                log("  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track")
+                log(
+                    "  - Different track selected (current: {current_track.get('name', 'Unknown')}), playing new track"
+                )
             else:
                 log("  - No track playing, starting playback")
 
@@ -373,9 +411,7 @@ class TracksList(Container):
             log("  - Updated visual indicators")
 
             log("  - Posting TrackSelected message")
-            self.post_message(
-                self.TrackSelected(selected_track["id"], selected_track)
-            )
+            self.post_message(self.TrackSelected(selected_track["id"], selected_track))
             log("=" * 80)
 
     def action_refresh_tracks(self) -> None:
@@ -384,9 +420,7 @@ class TracksList(Container):
         if self.current_item_id and self.current_item_type:
             log(f"  - Reloading tracks for {self.current_album_name}")
             self.load_tracks(
-                self.current_item_id,
-                self.current_album_name,
-                self.current_item_type
+                self.current_item_id, self.current_album_name, self.current_item_type
             )
         else:
             log("  - No tracks loaded yet, nothing to refresh")
@@ -420,9 +454,7 @@ class TracksList(Container):
                 log("  - Updated visual indicators")
 
                 log("  - Posting TrackSelected message")
-                self.post_message(
-                    self.TrackSelected(track["id"], track)
-                )
+                self.post_message(self.TrackSelected(track["id"], track))
                 log("=" * 80)
 
     def play_next_track(self) -> None:
@@ -452,4 +484,3 @@ class TracksList(Container):
         list_view.index = prev_index
         self._update_track_indicators()
         self.post_message(self.TrackSelected(prev_track["id"], prev_track))
-
