@@ -336,3 +336,39 @@ class TracksList(Container):
                 )
                 log("=" * 80)
 
+    def play_next_track(self) -> None:
+        """Play the next track in the list."""
+        if not self.tracks:
+            return
+
+        if self.current_playing_index is None:
+            next_index = 0
+        else:
+            next_index = (self.current_playing_index + 1) % len(self.tracks)
+
+        next_track = self.tracks[next_index]
+        self.current_playing_index = next_index
+
+        list_view = self.query_one("#tracks-listview", ListView)
+        list_view.index = next_index
+        self._update_track_indicators()
+        self.post_message(self.TrackSelected(next_track["id"], next_track))
+
+    def play_previous_track(self) -> None:
+        """Play the previous track in the list."""
+        if not self.tracks:
+            return
+
+        if self.current_playing_index is None:
+            prev_index = len(self.tracks) - 1
+        else:
+            prev_index = (self.current_playing_index - 1) % len(self.tracks)
+
+        prev_track = self.tracks[prev_index]
+        self.current_playing_index = prev_index
+
+        list_view = self.query_one("#tracks-listview", ListView)
+        list_view.index = prev_index
+        self._update_track_indicators()
+        self.post_message(self.TrackSelected(prev_track["id"], prev_track))
+

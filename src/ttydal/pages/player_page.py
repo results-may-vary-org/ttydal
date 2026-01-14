@@ -150,3 +150,13 @@ class PlayerPage(Container):
     def seek_forward(self) -> None:
         """Seek forward 10 seconds."""
         self.player.seek(10)
+
+    def play_next(self) -> None:
+        """Play next track."""
+        tracks_list = self.query_one(TracksList)
+        tracks_list.play_next_track()
+
+    def play_previous(self) -> None:
+        """Play previous track."""
+        tracks_list = self.query_one(TracksList)
+        tracks_list.play_previous_track()
