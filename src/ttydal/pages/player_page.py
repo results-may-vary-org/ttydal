@@ -160,3 +160,12 @@ class PlayerPage(Container):
         """Play previous track."""
         tracks_list = self.query_one(TracksList)
         tracks_list.play_previous_track()
+
+    def on_shuffle_changed(self, enabled: bool) -> None:
+        """Handle shuffle setting change.
+
+        Args:
+            enabled: Whether shuffle is now enabled
+        """
+        tracks_list = self.query_one(TracksList)
+        tracks_list.on_shuffle_changed(enabled)

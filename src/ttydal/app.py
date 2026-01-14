@@ -38,6 +38,7 @@ class TtydalApp(App):
         Binding("t", "focus_tracks", "Tracks", show=True),
         Binding("space", "toggle_play", "Play/Pause", show=True),
         Binding("n", "toggle_auto_play", "Auto-Play", show=True),
+        Binding("s", "toggle_shuffle", "Shuffle", show=True),
         Binding("shift+left", "seek_backward", "Seek -10s", show=True),
         Binding("shift+right", "seek_forward", "Seek +10s", show=True),
         Binding("P", "play_previous", "Previous", show=True),
@@ -286,6 +287,23 @@ class TtydalApp(App):
         # Show notification
         status = "enabled" if new_state else "disabled"
         self.notify(f"Auto-play {status}", severity="information")
+
+    def action_toggle_shuffle(self) -> None:
+        """Toggle shuffle playback setting."""
+        log("TtydalApp.action_toggle_shuffle() called")
+        current_state = self.config.shuffle
+        new_state = not current_state
+        self.config.shuffle = new_state
+        log(f"  - Shuffle toggled: {current_state} -> {new_state}")
+
+        # Notify TracksList to reshuffle if enabling
+        if self.current_page == "player":
+            player_page = self.query_one(PlayerPage)
+            player_page.on_shuffle_changed(new_state)
+
+        # Show notification
+        status = "enabled" if new_state else "disabled"
+        self.notify(f"Shuffle {status}", severity="information")
 
     def action_play_next(self) -> None:
         """Play next track."""

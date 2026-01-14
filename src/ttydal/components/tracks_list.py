@@ -1,5 +1,7 @@
 """Tracks list component for browsing and playing tracks."""
 
+import random
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container
@@ -64,6 +66,9 @@ class TracksList(Container):
         self.current_item_type = None
         self.current_playing_index = None
         self._track_end_callback_registered = False
+        # Shuffle state
+        self.shuffled_indices: list[int] = []  # Shuffled order of track indices
+        self.shuffle_position: int = 0  # Current position in the shuffled order
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
@@ -99,8 +104,8 @@ class TracksList(Container):
             log("=" * 80)
             return
 
-        # Calculate next track (loop to start if at end)
-        next_index = (self.current_playing_index + 1) % len(self.tracks)
+        # Get next track index (respects shuffle mode)
+        next_index = self._get_next_track_index()
         next_track = self.tracks[next_index]
         log(f"  - Playing next: {next_track['name']} (index {next_index}/{len(self.tracks)-1})")
 
@@ -118,6 +123,84 @@ class TracksList(Container):
         # Trigger playback
         self.post_message(self.TrackSelected(next_track["id"], next_track))
         log("=" * 80)
+
+    def _generate_shuffle_order(self) -> None:
+        """Generate a new random shuffle order for tracks."""
+        if not self.tracks:
+            self.shuffled_indices = []
+            self.shuffle_position = 0
+            return
+
+        # Create a list of all indices and shuffle it
+        self.shuffled_indices = list(range(len(self.tracks)))
+        random.shuffle(self.shuffled_indices)
+
+        # If currently playing, put the current track at position 0
+        if self.current_playing_index is not None and self.current_playing_index in self.shuffled_indices:
+            self.shuffled_indices.remove(self.current_playing_index)
+            self.shuffled_indices.insert(0, self.current_playing_index)
+            self.shuffle_position = 0
+
+        log(f"TracksList: Generated shuffle order: {self.shuffled_indices[:5]}... (showing first 5)")
+
+    def on_shuffle_changed(self, enabled: bool) -> None:
+        """Handle shuffle setting change.
+
+        Args:
+            enabled: Whether shuffle is now enabled
+        """
+        log(f"TracksList: Shuffle changed to {enabled}")
+        if enabled:
+            self._generate_shuffle_order()
+        else:
+            self.shuffled_indices = []
+            self.shuffle_position = 0
+
+    def _get_next_track_index(self) -> int:
+        """Get the next track index, respecting shuffle mode."""
+        from ttydal.config import ConfigManager
+        config = ConfigManager()
+
+        if config.shuffle and self.shuffled_indices:
+            # Find current position in shuffle order
+            if self.current_playing_index is not None:
+                try:
+                    self.shuffle_position = self.shuffled_indices.index(self.current_playing_index)
+                except ValueError:
+                    self.shuffle_position = 0
+
+            # Move to next position in shuffle order
+            next_shuffle_pos = (self.shuffle_position + 1) % len(self.shuffled_indices)
+            self.shuffle_position = next_shuffle_pos
+            return self.shuffled_indices[next_shuffle_pos]
+        else:
+            # Normal sequential order
+            if self.current_playing_index is None:
+                return 0
+            return (self.current_playing_index + 1) % len(self.tracks)
+
+    def _get_previous_track_index(self) -> int:
+        """Get the previous track index, respecting shuffle mode."""
+        from ttydal.config import ConfigManager
+        config = ConfigManager()
+
+        if config.shuffle and self.shuffled_indices:
+            # Find current position in shuffle order
+            if self.current_playing_index is not None:
+                try:
+                    self.shuffle_position = self.shuffled_indices.index(self.current_playing_index)
+                except ValueError:
+                    self.shuffle_position = 0
+
+            # Move to previous position in shuffle order
+            prev_shuffle_pos = (self.shuffle_position - 1) % len(self.shuffled_indices)
+            self.shuffle_position = prev_shuffle_pos
+            return self.shuffled_indices[prev_shuffle_pos]
+        else:
+            # Normal sequential order
+            if self.current_playing_index is None:
+                return len(self.tracks) - 1
+            return (self.current_playing_index - 1) % len(self.tracks)
 
     def load_tracks(self, item_id: str, item_name: str, item_type: str = "album") -> None:
         """Load ALL tracks for a specific album or playlist.
@@ -192,6 +275,12 @@ class TracksList(Container):
         # Update header to remove loading text
         header = self.query_one(Label)
         header.update(f"(t)racks - {item_name}")
+
+        # Regenerate shuffle order if shuffle is enabled
+        from ttydal.config import ConfigManager
+        config = ConfigManager()
+        if config.shuffle:
+            self._generate_shuffle_order()
 
         # Update visual indicators (in case we're reloading while a track is playing)
         self._update_track_indicators()
@@ -341,11 +430,7 @@ class TracksList(Container):
         if not self.tracks:
             return
 
-        if self.current_playing_index is None:
-            next_index = 0
-        else:
-            next_index = (self.current_playing_index + 1) % len(self.tracks)
-
+        next_index = self._get_next_track_index()
         next_track = self.tracks[next_index]
         self.current_playing_index = next_index
 
@@ -359,11 +444,7 @@ class TracksList(Container):
         if not self.tracks:
             return
 
-        if self.current_playing_index is None:
-            prev_index = len(self.tracks) - 1
-        else:
-            prev_index = (self.current_playing_index - 1) % len(self.tracks)
-
+        prev_index = self._get_previous_track_index()
         prev_track = self.tracks[prev_index]
         self.current_playing_index = prev_index
 

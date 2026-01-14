@@ -123,3 +123,13 @@ class ConfigManager:
     def api_logging_enabled(self, value: bool) -> None:
         """Set the API logging enabled setting."""
         self.set("api_logging_enabled", value)
+
+    @property
+    def shuffle(self) -> bool:
+        """Get the shuffle setting."""
+        return self.get("shuffle", False)
+
+    @shuffle.setter
+    def shuffle(self, value: bool) -> None:
+        """Set the shuffle setting."""
+        self.set("shuffle", value)
