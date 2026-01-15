@@ -13,7 +13,8 @@ from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
-from ttydal.services import AlbumsService, TidalServiceError
+from ttydal.services import AlbumsService, TracksService, TidalServiceError
+from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
 
 
@@ -69,11 +70,14 @@ class AlbumsList(Container):
     def __init__(self):
         """Initialize the albums list."""
         super().__init__()
-        self.albums_service = AlbumsService(TidalClient())
+        tidal_client = TidalClient()
+        self.albums_service = AlbumsService(tidal_client)
+        self.tracks_service = TracksService(tidal_client)
         self.albums = []
         self.current_playing_item_id = None
         self._is_initial_load = True
         self._saved_selection_id = None  # For restoring selection after refresh
+        self._preload_in_progress = False
 
     def compose(self) -> ComposeResult:
         """Compose the albums list UI."""
@@ -124,6 +128,54 @@ class AlbumsList(Container):
                 log(f"  - Selection restored to index {idx}")
                 return
         log("  - Could not find saved selection, keeping current position")
+
+    def _start_preload(self) -> None:
+        """Start background preloading of all tracks."""
+        if self._preload_in_progress:
+            return
+        self._preload_in_progress = True
+        log("AlbumsList: Starting background preload of all tracks")
+        self.run_worker(self._preload_all_tracks_async(), exclusive=False)
+
+    async def _preload_all_tracks_async(self) -> None:
+        """Background worker to preload tracks for all albums into cache."""
+        cache = TracksCache()
+        total_loaded = 0
+        albums_to_load = list(
+            self.albums
+        )  # Copy to avoid modification during iteration
+
+        log(f"AlbumsList: Preloading tracks for {len(albums_to_load)} albums")
+
+        for album in albums_to_load:
+            item_id = album["id"]
+            item_type = album["type"]
+
+            # Skip if already cached
+            if cache.get(item_id) is not None:
+                log(f"  - {album['name']}: already cached, skipping")
+                continue
+
+            try:
+                if item_type == "favorites":
+                    tracks = await self.tracks_service.get_favorites_tracks()
+                elif item_type == "playlist":
+                    tracks = await self.tracks_service.get_playlist_tracks(item_id)
+                else:  # album
+                    tracks = await self.tracks_service.get_album_tracks(item_id)
+
+                cache.set(item_id, tracks)
+                total_loaded += len(tracks)
+                log(f"  - {album['name']}: cached {len(tracks)} tracks")
+            except Exception as e:
+                log(f"  - {album['name']}: error loading tracks: {e}")
+
+        self._preload_in_progress = False
+        stats = cache.get_stats()
+        log(
+            f"AlbumsList: Preload complete - {stats['tracks_count']} tracks "
+            f"from {stats['albums_count']} albums"
+        )
 
     def load_albums(self) -> None:
         """Load user albums and playlists from Tidal."""
@@ -225,6 +277,8 @@ class AlbumsList(Container):
             # Auto-select "My Tracks" only on initial load, restore selection on refresh
             if self._is_initial_load:
                 self.set_timer(0.1, self.auto_select_my_tracks)
+                # Start background preloading of all tracks for cache
+                self.set_timer(0.5, self._start_preload)
             else:
                 self.set_timer(0.1, self._restore_selection)
         except TidalServiceError as e:
@@ -283,8 +337,6 @@ class AlbumsList(Container):
         log("AlbumsList: Refresh albums action triggered")
         # Clear the entire tracks cache when refreshing albums
         # This ensures search has fresh data after user makes changes on web
-        from ttydal.services.tracks_cache import TracksCache
-
         TracksCache().clear()
         log("  - Cleared tracks cache")
         self.load_albums()

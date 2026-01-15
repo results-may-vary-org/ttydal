@@ -11,6 +11,7 @@ from ttydal.player import Player
 from ttydal.components.player_bar import PlayerBar
 from ttydal.components.login_modal import LoginModal
 from ttydal.components.search_modal import SearchModal
+from ttydal.components.cache_modal import CacheModal
 from ttydal.components.albums_list import AlbumsList
 from ttydal.components.tracks_list import TracksList
 from ttydal.services.tracks_cache import TracksCache
@@ -41,6 +42,7 @@ class TtydalApp(App):
         Binding("a", "focus_albums", "Albums", show=True),
         Binding("t", "focus_tracks", "Tracks", show=True),
         Binding("/", "open_search", "Search", show=True),
+        Binding("i", "open_cache_info", "Cache", show=True),
         Binding("space", "toggle_play", "Play/Pause", show=True),
         Binding("n", "toggle_auto_play", "Auto-Play", show=True),
         Binding("s", "toggle_shuffle", "Shuffle", show=True),
@@ -356,6 +358,12 @@ class TtydalApp(App):
         # Open the search modal
         search_modal = SearchModal(albums=albums, tracks=tracks)
         self.push_screen(search_modal)
+
+    def action_open_cache_info(self) -> None:
+        """Open the cache info modal."""
+        log("TtydalApp.action_open_cache_info() called")
+        cache_modal = CacheModal()
+        self.push_screen(cache_modal)
 
     def on_search_modal_album_selected(self, event: SearchModal.AlbumSelected) -> None:
         """Handle album selection from search modal.
