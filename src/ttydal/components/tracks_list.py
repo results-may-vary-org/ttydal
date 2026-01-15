@@ -10,6 +10,7 @@ from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
 from ttydal.services import TracksService, TidalServiceError
+from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
 
 
@@ -266,17 +267,28 @@ class TracksList(Container):
             item_type: Type of item ('album', 'playlist', or 'favorites')
         """
         try:
-            # Load tracks based on item type
-            log(f"  - Loading tracks for type: {item_type}")
-            if item_type == "favorites":
-                # Load favorite tracks
-                tracks_list = await self.tracks_service.get_favorites_tracks()
-            elif item_type == "playlist":
-                # Load playlist tracks
-                tracks_list = await self.tracks_service.get_playlist_tracks(item_id)
-            else:  # album
-                # Load album tracks
-                tracks_list = await self.tracks_service.get_album_tracks(item_id)
+            # Check cache first
+            cache = TracksCache()
+            cached_tracks = cache.get(item_id)
+
+            if cached_tracks is not None:
+                log(f"  - Using cached tracks for {item_id}")
+                tracks_list = cached_tracks
+            else:
+                # Load tracks based on item type
+                log(f"  - Loading tracks for type: {item_type}")
+                if item_type == "favorites":
+                    # Load favorite tracks
+                    tracks_list = await self.tracks_service.get_favorites_tracks()
+                elif item_type == "playlist":
+                    # Load playlist tracks
+                    tracks_list = await self.tracks_service.get_playlist_tracks(item_id)
+                else:  # album
+                    # Load album tracks
+                    tracks_list = await self.tracks_service.get_album_tracks(item_id)
+
+                # Store in cache for future use and search
+                cache.set(item_id, tracks_list)
 
             log(f"  - Retrieved {len(tracks_list)} tracks")
 
@@ -439,9 +451,17 @@ class TracksList(Container):
             log("=" * 80)
 
     def action_refresh_tracks(self) -> None:
-        """Refresh the current tracks list (r key action)."""
+        """Refresh the current tracks list (r key action).
+
+        This invalidates the cache entry for this album/playlist to fetch fresh data.
+        """
         log("TracksList: Refresh tracks action triggered")
         if self.current_item_id and self.current_item_type:
+            # Invalidate cache for this item to force fresh fetch
+            from ttydal.services.tracks_cache import TracksCache
+
+            TracksCache().invalidate(self.current_item_id)
+            log(f"  - Invalidated cache for {self.current_item_id}")
             log(f"  - Reloading tracks for {self.current_album_name}")
             self.load_tracks(
                 self.current_item_id, self.current_album_name, self.current_item_type

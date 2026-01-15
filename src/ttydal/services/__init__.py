@@ -10,6 +10,7 @@ import asyncio
 from ttydal.exceptions import TidalServiceError, DataFetchError
 from ttydal.logger import log
 from ttydal.services.playback_service import PlaybackService, PlaybackResult
+from ttydal.services.tracks_cache import TracksCache
 
 
 class AlbumsService:
@@ -179,6 +180,7 @@ class TracksService:
 __all__ = [
     "AlbumsService",
     "TracksService",
+    "TracksCache",
     "PlaybackService",
     "PlaybackResult",
     "TidalServiceError",

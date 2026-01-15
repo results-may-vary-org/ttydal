@@ -13,6 +13,7 @@ from ttydal.components.login_modal import LoginModal
 from ttydal.components.search_modal import SearchModal
 from ttydal.components.albums_list import AlbumsList
 from ttydal.components.tracks_list import TracksList
+from ttydal.services.tracks_cache import TracksCache
 from ttydal.config import ConfigManager
 from ttydal.logger import log
 
@@ -330,20 +331,27 @@ class TtydalApp(App):
         except Exception as e:
             log(f"  - Error getting albums: {e}")
 
-        # Get tracks from TracksList (currently loaded tracks)
+        # Get ALL cached tracks for smart search across all loaded albums
         tracks = []
         try:
-            player_page = self.query_one(PlayerPage)
-            tracks_list = player_page.query_one(TracksList)
-            # Add album_id and album_type to each track for navigation
-            for track in tracks_list.tracks:
-                track_with_album = track.copy()
-                track_with_album["album_id"] = tracks_list.current_item_id
-                track_with_album["album_type"] = tracks_list.current_item_type
-                tracks.append(track_with_album)
-            log(f"  - Got {len(tracks)} tracks from current album/playlist")
+            cache = TracksCache()
+            all_cached_tracks = cache.get_all_tracks()
+
+            # Add album info to each track for navigation
+            for track in all_cached_tracks:
+                album_id = track.get("_cache_album_id")
+                # Find the album info from albums list
+                for album in albums:
+                    if album["id"] == album_id:
+                        track["album_id"] = album_id
+                        track["album_type"] = album["type"]
+                        track["album_name"] = album["name"]
+                        break
+                tracks.append(track)
+
+            log(f"  - Got {len(tracks)} tracks from cache (all loaded albums)")
         except Exception as e:
-            log(f"  - Error getting tracks: {e}")
+            log(f"  - Error getting cached tracks: {e}")
 
         # Open the search modal
         search_modal = SearchModal(albums=albums, tracks=tracks)

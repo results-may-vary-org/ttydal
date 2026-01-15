@@ -1,4 +1,10 @@
-"""Albums list component for browsing user albums and playlists."""
+"""Albums list component for browsing user albums and playlists.
+
+Note: We don't cache the albums list because:
+1. Users rarely reload it after initial load
+2. It's a small dataset that loads quickly
+3. Changes to favorites/playlists should reflect immediately
+"""
 
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -270,8 +276,17 @@ class AlbumsList(Container):
             log(f"  - Error updating album indicators: {e}")
 
     def action_refresh_albums(self) -> None:
-        """Refresh the albums and playlists list (r key action)."""
+        """Refresh the albums and playlists list (r key action).
+
+        This also clears the entire tracks cache to ensure fresh data.
+        """
         log("AlbumsList: Refresh albums action triggered")
+        # Clear the entire tracks cache when refreshing albums
+        # This ensures search has fresh data after user makes changes on web
+        from ttydal.services.tracks_cache import TracksCache
+
+        TracksCache().clear()
+        log("  - Cleared tracks cache")
         self.load_albums()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
