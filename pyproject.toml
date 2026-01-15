@@ -10,6 +10,7 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "appdirs>=1.4.4",
+    "fuzzysearch>=0.8.1",
     "keyring>=25.7.0",
     "mpv>=1.0.8",
     "platformdirs>=4.5.1",

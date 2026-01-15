@@ -10,6 +10,9 @@ from ttydal.tidal_client import TidalClient
 from ttydal.player import Player
 from ttydal.components.player_bar import PlayerBar
 from ttydal.components.login_modal import LoginModal
+from ttydal.components.search_modal import SearchModal
+from ttydal.components.albums_list import AlbumsList
+from ttydal.components.tracks_list import TracksList
 from ttydal.config import ConfigManager
 from ttydal.logger import log
 
@@ -36,6 +39,7 @@ class TtydalApp(App):
         Binding("c", "show_config", "Config", show=True),
         Binding("a", "focus_albums", "Albums", show=True),
         Binding("t", "focus_tracks", "Tracks", show=True),
+        Binding("/", "open_search", "Search", show=True),
         Binding("space", "toggle_play", "Play/Pause", show=True),
         Binding("n", "toggle_auto_play", "Auto-Play", show=True),
         Binding("s", "toggle_shuffle", "Shuffle", show=True),
@@ -311,6 +315,121 @@ class TtydalApp(App):
         if self.current_page == "player":
             player_page = self.query_one(PlayerPage)
             player_page.play_previous()
+
+    def action_open_search(self) -> None:
+        """Open the fuzzy search modal."""
+        log("TtydalApp.action_open_search() called")
+
+        # Get albums from AlbumsList
+        albums = []
+        try:
+            player_page = self.query_one(PlayerPage)
+            albums_list = player_page.query_one(AlbumsList)
+            albums = albums_list.albums.copy()
+            log(f"  - Got {len(albums)} albums")
+        except Exception as e:
+            log(f"  - Error getting albums: {e}")
+
+        # Get tracks from TracksList (currently loaded tracks)
+        tracks = []
+        try:
+            player_page = self.query_one(PlayerPage)
+            tracks_list = player_page.query_one(TracksList)
+            # Add album_id and album_type to each track for navigation
+            for track in tracks_list.tracks:
+                track_with_album = track.copy()
+                track_with_album["album_id"] = tracks_list.current_item_id
+                track_with_album["album_type"] = tracks_list.current_item_type
+                tracks.append(track_with_album)
+            log(f"  - Got {len(tracks)} tracks from current album/playlist")
+        except Exception as e:
+            log(f"  - Error getting tracks: {e}")
+
+        # Open the search modal
+        search_modal = SearchModal(albums=albums, tracks=tracks)
+        self.push_screen(search_modal)
+
+    def on_search_modal_album_selected(self, event: SearchModal.AlbumSelected) -> None:
+        """Handle album selection from search modal.
+
+        Args:
+            event: Album selected event
+        """
+        log(f"TtydalApp: Album selected from search - {event.album_name}")
+
+        # Switch to player page if not already there
+        if self.current_page != "player":
+            self.action_show_player()
+
+        # Find the album in the albums list and select it
+        try:
+            player_page = self.query_one(PlayerPage)
+            albums_list = player_page.query_one(AlbumsList)
+
+            # Find the index of the album
+            for idx, album in enumerate(albums_list.albums):
+                if album["id"] == event.album_id:
+                    log(f"  - Found album at index {idx}")
+                    # Select the album in the list view
+                    list_view = albums_list.query_one("#albums-listview")
+                    list_view.index = idx
+                    # Trigger the album selection to load tracks
+                    albums_list.post_message(
+                        AlbumsList.AlbumSelected(
+                            event.album_id, event.album_name, event.album_type
+                        )
+                    )
+                    # Focus the albums list
+                    list_view.focus()
+                    return
+
+            log(f"  - Album {event.album_id} not found in list")
+        except Exception as e:
+            log(f"  - Error selecting album: {e}")
+
+    def on_search_modal_track_selected(self, event: SearchModal.TrackSelected) -> None:
+        """Handle track selection from search modal for playback.
+
+        Args:
+            event: Track selected event
+        """
+        log(
+            f"TtydalApp: Track selected from search - {event.track_info.get('name', 'Unknown')}"
+        )
+
+        # Switch to player page if not already there
+        if self.current_page != "player":
+            self.action_show_player()
+
+        # Play the track directly through PlayerPage
+        try:
+            player_page = self.query_one(PlayerPage)
+            tracks_list = player_page.query_one(TracksList)
+
+            # Find the track index in the current tracks list
+            track_index = None
+            for idx, track in enumerate(tracks_list.tracks):
+                if track["id"] == event.track_id:
+                    track_index = idx
+                    break
+
+            if track_index is not None:
+                # Update the current playing index
+                tracks_list.current_playing_index = track_index
+                tracks_list._playing_item_id = tracks_list.current_item_id
+                tracks_list._update_track_indicators()
+
+                # Select the track in the list view
+                list_view = tracks_list.query_one("#tracks-listview")
+                list_view.index = track_index
+
+            # Post the track selected message to trigger playback
+            tracks_list.post_message(
+                TracksList.TrackSelected(event.track_id, event.track_info)
+            )
+            log("  - Posted TrackSelected message for playback")
+        except Exception as e:
+            log(f"  - Error playing track: {e}")
 
     def on_config_page_theme_changed(self, event: ConfigPage.ThemeChanged) -> None:
         """Handle theme setting change.
