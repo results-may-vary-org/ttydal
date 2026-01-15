@@ -78,6 +78,7 @@ class AlbumsList(Container):
         self._is_initial_load = True
         self._saved_selection_id = None  # For restoring selection after refresh
         self._preload_in_progress = False
+        self._trigger_preload_after_refresh = False
 
     def compose(self) -> ComposeResult:
         """Compose the albums list UI."""
@@ -281,6 +282,10 @@ class AlbumsList(Container):
                 self.set_timer(0.5, self._start_preload)
             else:
                 self.set_timer(0.1, self._restore_selection)
+                # Re-preload all tracks after refresh if requested
+                if self._trigger_preload_after_refresh:
+                    self._trigger_preload_after_refresh = False
+                    self.set_timer(0.5, self._start_preload)
         except TidalServiceError as e:
             log(f"AlbumsList: Service error loading albums: {e}")
             header = self.query_one(Label)
@@ -332,13 +337,15 @@ class AlbumsList(Container):
     def action_refresh_albums(self) -> None:
         """Refresh the albums and playlists list (r key action).
 
-        This also clears the entire tracks cache to ensure fresh data.
+        This clears the tracks cache, reloads albums, and re-preloads all tracks.
         """
         log("AlbumsList: Refresh albums action triggered")
         # Clear the entire tracks cache when refreshing albums
-        # This ensures search has fresh data after user makes changes on web
         TracksCache().clear()
         log("  - Cleared tracks cache")
+        # Reset preload flag so it will run again after albums load
+        self._preload_in_progress = False
+        self._trigger_preload_after_refresh = True
         self.load_albums()
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:

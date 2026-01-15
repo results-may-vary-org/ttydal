@@ -457,9 +457,7 @@ class TracksList(Container):
         """
         log("TracksList: Refresh tracks action triggered")
         if self.current_item_id and self.current_item_type:
-            # Invalidate cache for this item to force fresh fetch
-            from ttydal.services.tracks_cache import TracksCache
-
+            # Invalidate cache for this item only (not entire cache)
             TracksCache().invalidate(self.current_item_id)
             log(f"  - Invalidated cache for {self.current_item_id}")
             log(f"  - Reloading tracks for {self.current_album_name}")
