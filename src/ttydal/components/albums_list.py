@@ -66,6 +66,8 @@ class AlbumsList(Container):
         self.albums_service = AlbumsService(TidalClient())
         self.albums = []
         self.current_playing_item_id = None
+        self._is_initial_load = True
+        self._saved_selection_id = None  # For restoring selection after refresh
 
     def compose(self) -> ComposeResult:
         """Compose the albums list UI."""
@@ -81,6 +83,8 @@ class AlbumsList(Container):
     def delayed_load(self) -> None:
         """Load albums after a delay to ensure session is ready."""
         log("AlbumsList.delayed_load() called")
+        # This is the initial load, so auto-select My Tracks afterwards
+        self._is_initial_load = True
         # Add loading class for visual feedback
         self.add_class("loading")
         # Run loading in a worker - exclusive=True prevents race conditions
@@ -100,16 +104,40 @@ class AlbumsList(Container):
             )
             log("  - My Tracks auto-selected")
 
+    def _restore_selection(self) -> None:
+        """Restore the previously selected album/playlist after refresh."""
+        log(f"AlbumsList: Restoring selection to {self._saved_selection_id}")
+        if self._saved_selection_id is None:
+            return
+
+        list_view = self.query_one("#albums-listview", ListView)
+        # Find the index of the saved selection
+        for idx, album in enumerate(self.albums):
+            if album["id"] == self._saved_selection_id:
+                list_view.index = idx
+                log(f"  - Selection restored to index {idx}")
+                return
+        log("  - Could not find saved selection, keeping current position")
+
     def load_albums(self) -> None:
         """Load user albums and playlists from Tidal."""
         log("AlbumsList.load_albums() called")
+        # This is a refresh, not initial load - preserve current selection
+        self._is_initial_load = False
+        # Save the current selection to restore after refresh
+        list_view = self.query_one("#albums-listview", ListView)
+        current_index = list_view.index
+        if current_index is not None and current_index < len(self.albums):
+            self._saved_selection_id = self.albums[current_index]["id"]
+            log(f"  - Saved current selection: {self._saved_selection_id}")
+        else:
+            self._saved_selection_id = None
         # Add loading class for visual feedback
         self.add_class("loading")
         # Show loading in header
         header = self.query_one(Label)
         header.update("(a)lbums & playlists (loading...)")
         # Clear list immediately (synchronously) to prevent display issues
-        list_view = self.query_one("#albums-listview", ListView)
         list_view.remove_children()
         self.albums = []
         log("  - Cleared albums list synchronously using remove_children()")
@@ -188,8 +216,11 @@ class AlbumsList(Container):
             # Update visual indicators (in case we're reloading while something is playing)
             self._update_album_indicators()
 
-            # Auto-select "My Tracks" after loading
-            self.set_timer(0.1, self.auto_select_my_tracks)
+            # Auto-select "My Tracks" only on initial load, restore selection on refresh
+            if self._is_initial_load:
+                self.set_timer(0.1, self.auto_select_my_tracks)
+            else:
+                self.set_timer(0.1, self._restore_selection)
         except TidalServiceError as e:
             log(f"AlbumsList: Service error loading albums: {e}")
             header = self.query_one(Label)

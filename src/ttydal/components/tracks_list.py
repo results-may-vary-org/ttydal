@@ -70,6 +70,7 @@ class TracksList(Container):
         self.current_item_id = None
         self.current_item_type = None
         self.current_playing_index = None
+        self._playing_item_id = None  # Album/playlist ID of the currently PLAYING track
         self._track_end_callback_registered = False
         # Shuffle state
         self.shuffled_indices: list[int] = []  # Shuffled order of track indices
@@ -343,6 +344,8 @@ class TracksList(Container):
         """Update track list to show '>' indicator for currently playing track."""
         try:
             list_view = self.query_one("#tracks-listview", ListView)
+            # Only show indicator if viewing the album that contains the playing track
+            show_indicator = self.current_item_id == self._playing_item_id
             for idx, list_item in enumerate(list_view.children):
                 if idx < len(self.tracks):
                     track = self.tracks[idx]
@@ -351,7 +354,12 @@ class TracksList(Container):
                     duration = self._format_duration(track["duration"])
 
                     # Add ">" prefix if this is the currently playing track
-                    prefix = "> " if idx == self.current_playing_index else "  "
+                    # AND we're viewing the album that contains the playing track
+                    prefix = (
+                        "> "
+                        if show_indicator and idx == self.current_playing_index
+                        else "  "
+                    )
                     label = list_item.query_one(Label)
                     label.update(
                         f"{prefix}{idx + 1}. {track_name} - {artist} ({duration})"
@@ -417,8 +425,9 @@ class TracksList(Container):
             else:
                 log("  - No track playing, starting playback")
 
-            # Update current playing index
+            # Update current playing index and album
             self.current_playing_index = index
+            self._playing_item_id = self.current_item_id
             log(f"  - Updated current playing index to: {index}")
 
             # Update visual indicators
@@ -460,8 +469,9 @@ class TracksList(Container):
                 log(f"  - Selected track: {track['name']} (ID: {track['id']})")
                 log("  - Playing/restarting track (Enter always plays)")
 
-                # Update current playing index for auto-play tracking
+                # Update current playing index and album for auto-play tracking
                 self.current_playing_index = index
+                self._playing_item_id = self.current_item_id
                 log(f"  - Updated current playing index to: {index}")
 
                 # Update visual indicators
@@ -480,6 +490,7 @@ class TracksList(Container):
         next_index = self._get_next_track_index()
         next_track = self.tracks[next_index]
         self.current_playing_index = next_index
+        self._playing_item_id = self.current_item_id
 
         list_view = self.query_one("#tracks-listview", ListView)
         list_view.index = next_index
@@ -494,6 +505,7 @@ class TracksList(Container):
         prev_index = self._get_previous_track_index()
         prev_track = self.tracks[prev_index]
         self.current_playing_index = prev_index
+        self._playing_item_id = self.current_item_id
 
         list_view = self.query_one("#tracks-listview", ListView)
         list_view.index = prev_index
