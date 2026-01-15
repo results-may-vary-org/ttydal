@@ -7,7 +7,7 @@ from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
-from ttydal.services import AlbumsService
+from ttydal.services import AlbumsService, TidalServiceError
 from ttydal.logger import log
 
 
@@ -59,8 +59,7 @@ class AlbumsList(Container):
     def __init__(self):
         """Initialize the albums list."""
         super().__init__()
-        self.tidal = TidalClient()
-        self.albums_service = AlbumsService(self.tidal)
+        self.albums_service = AlbumsService(TidalClient())
         self.albums = []
         self.current_playing_item_id = None
 
@@ -113,75 +112,81 @@ class AlbumsList(Container):
         """Async worker to load albums without blocking UI."""
         log("AlbumsList._load_albums_async() called")
 
-        # List already cleared synchronously before worker started
-        # Add "My Tracks" as first item - get actual favorite track count
-        list_view = self.query_one("#albums-listview", ListView)
-        log("  - Getting favorite tracks count...")
-        favorites_info = await self.albums_service.get_favorites_info()
-        fav_count = favorites_info["count"]
-        log(f"  - Found {fav_count} favorite tracks")
-        list_view.append(ListItem(Label(f"My Tracks ({fav_count} tracks)")))
-        self.albums = [
-            {
-                "id": "favorites",
-                "name": "My Tracks",
-                "type": "favorites",
-                "count": fav_count,
-            }
-        ]
-
-        # Load user playlists
-        log("  - Loading playlists...")
-        user_playlists = await self.albums_service.get_user_playlists()
-        for playlist in user_playlists:
-            playlist_name = playlist["name"]
-            # Get track count - check for None explicitly to handle 0 correctly
-            track_count = playlist.get("count")
-            if track_count is None:
-                track_count = "?"
-            display_name = f"{playlist_name} ({track_count} tracks)"
-            list_view.append(ListItem(Label(display_name)))
-            self.albums.append(
+        try:
+            # List already cleared synchronously before worker started
+            # Add "My Tracks" as first item - get actual favorite track count
+            list_view = self.query_one("#albums-listview", ListView)
+            log("  - Getting favorite tracks count...")
+            favorites_info = await self.albums_service.get_favorites_info()
+            fav_count = favorites_info["count"]
+            log(f"  - Found {fav_count} favorite tracks")
+            list_view.append(ListItem(Label(f"My Tracks ({fav_count} tracks)")))
+            self.albums = [
                 {
-                    "id": str(playlist["id"]),
-                    "name": playlist_name,
-                    "type": "playlist",
-                    "count": track_count,
+                    "id": "favorites",
+                    "name": "My Tracks",
+                    "type": "favorites",
+                    "count": fav_count,
                 }
-            )
-        log(f"  - Loaded {len(user_playlists)} playlists")
+            ]
 
-        # Load user albums
-        log("  - Loading albums...")
-        user_albums = await self.albums_service.get_user_albums()
-        for album in user_albums:
-            album_name = album["name"]
-            # Get track count - check for None explicitly to handle 0 correctly
-            track_count = album.get("count")
-            if track_count is None:
-                track_count = "?"
-            display_name = f"{album_name} ({track_count} tracks)"
-            list_view.append(ListItem(Label(display_name)))
-            self.albums.append(
-                {
-                    "id": str(album["id"]),
-                    "name": album_name,
-                    "type": "album",
-                    "count": track_count,
-                }
-            )
-        log(f"  - Loaded {len(user_albums)} albums")
-        log(f"  - Total items in list: {len(self.albums)}")
+            # Load user playlists
+            log("  - Loading playlists...")
+            user_playlists = await self.albums_service.get_user_playlists()
+            for playlist in user_playlists:
+                playlist_name = playlist["name"]
+                # Get track count - check for None explicitly to handle 0 correctly
+                track_count = playlist.get("count")
+                if track_count is None:
+                    track_count = "?"
+                display_name = f"{playlist_name} ({track_count} tracks)"
+                list_view.append(ListItem(Label(display_name)))
+                self.albums.append(
+                    {
+                        "id": str(playlist["id"]),
+                        "name": playlist_name,
+                        "type": "playlist",
+                        "count": track_count,
+                    }
+                )
+            log(f"  - Loaded {len(user_playlists)} playlists")
 
-        # Update header to remove loading text
-        header = self.query_one(Label)
-        header.update("(a)lbums & playlists")
+            # Load user albums
+            log("  - Loading albums...")
+            user_albums = await self.albums_service.get_user_albums()
+            for album in user_albums:
+                album_name = album["name"]
+                # Get track count - check for None explicitly to handle 0 correctly
+                track_count = album.get("count")
+                if track_count is None:
+                    track_count = "?"
+                display_name = f"{album_name} ({track_count} tracks)"
+                list_view.append(ListItem(Label(display_name)))
+                self.albums.append(
+                    {
+                        "id": str(album["id"]),
+                        "name": album_name,
+                        "type": "album",
+                        "count": track_count,
+                    }
+                )
+            log(f"  - Loaded {len(user_albums)} albums")
+            log(f"  - Total items in list: {len(self.albums)}")
 
-        # Update visual indicators (in case we're reloading while something is playing)
-        self._update_album_indicators()
+            # Update header to remove loading text
+            header = self.query_one(Label)
+            header.update("(a)lbums & playlists")
 
-        # Auto-select "My Tracks" after loading
-        self.set_timer(0.1, self.auto_select_my_tracks)
+            # Update visual indicators (in case we're reloading while something is playing)
+            self._update_album_indicators()
+
+            # Auto-select "My Tracks" after loading
+            self.set_timer(0.1, self.auto_select_my_tracks)
+        except TidalServiceError as e:
+            log(f"AlbumsList: Service error loading albums: {e}")
+            header = self.query_one(Label)
+            header.update("(a)lbums & playlists (error)")
+            self.app.notify(e.user_message, severity="error", timeout=5)
 
     def set_playing_item(self, item_id: str) -> None:
         """Mark an album/playlist as currently playing.

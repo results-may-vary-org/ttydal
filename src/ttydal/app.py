@@ -62,7 +62,9 @@ class TtydalApp(App):
 
         log("  - Creating ConfigManager...")
         self.config = ConfigManager()
-        log(f"  - ConfigManager created, theme={self.config.theme}, quality={self.config.quality}")
+        log(
+            f"  - ConfigManager created, theme={self.config.theme}, quality={self.config.quality}"
+        )
 
         self.current_page = "player"
         log("TtydalApp.__init__() completed")
@@ -113,6 +115,7 @@ class TtydalApp(App):
         except Exception as e:
             log(f"ERROR in on_mount(): {e}")
             import traceback
+
             log(traceback.format_exc())
             raise
 
@@ -134,13 +137,14 @@ class TtydalApp(App):
             log(f"  - Code: {code}")
 
             # Update modal with login info
-            if hasattr(self, 'login_modal') and self.login_modal:
+            if hasattr(self, "login_modal") and self.login_modal:
                 self.login_modal.update_login_info(login_url, code)
                 # Force a refresh to show the new info
                 self.login_modal.refresh(layout=True)
 
             # Wait for login completion in background
             import asyncio
+
             log("  - Waiting for user to complete login (no timeout)...")
             check_count = 0
             while True:
@@ -149,7 +153,7 @@ class TtydalApp(App):
 
                 if self.tidal.complete_login():
                     log("  - Login successful!")
-                    if hasattr(self, 'login_modal') and self.login_modal:
+                    if hasattr(self, "login_modal") and self.login_modal:
                         self.login_modal.update_status("✓ Login successful!")
                         await asyncio.sleep(1)
                         try:
@@ -163,21 +167,28 @@ class TtydalApp(App):
                     try:
                         player_page = self.query_one(PlayerPage)
                         albums_list_widget = player_page.query_one("AlbumsList")
-                        if hasattr(albums_list_widget, 'load_albums'):
+                        if hasattr(albums_list_widget, "load_albums"):
                             albums_list_widget.load_albums()
                     except Exception as e:
                         log(f"  - Error reloading albums: {e}")
                     return
 
                 # Update status every 10 checks
-                if check_count % 10 == 0 and hasattr(self, 'login_modal') and self.login_modal:
-                    self.login_modal.update_status(f"Waiting for login... ({check_count * 2}s)")
+                if (
+                    check_count % 10 == 0
+                    and hasattr(self, "login_modal")
+                    and self.login_modal
+                ):
+                    self.login_modal.update_status(
+                        f"Waiting for login... ({check_count * 2}s)"
+                    )
 
         except Exception as e:
             log(f"ERROR in login_flow(): {e}")
             import traceback
+
             log(traceback.format_exc())
-            if hasattr(self, 'login_modal') and self.login_modal:
+            if hasattr(self, "login_modal") and self.login_modal:
                 self.login_modal.update_status(f"Error: {e}")
             self.notify(f"Login error: {e}", severity="error")
 
@@ -190,7 +201,7 @@ class TtydalApp(App):
         log("Manual login check requested")
         if self.tidal.complete_login():
             log("  - Login successful on manual check!")
-            if hasattr(self, 'login_modal') and self.login_modal:
+            if hasattr(self, "login_modal") and self.login_modal:
                 self.login_modal.update_status("✓ Login successful!")
             self.notify("Login successful!", severity="information")
 
@@ -204,14 +215,16 @@ class TtydalApp(App):
             try:
                 player_page = self.query_one(PlayerPage)
                 albums_list_widget = player_page.query_one("AlbumsList")
-                if hasattr(albums_list_widget, 'load_albums'):
+                if hasattr(albums_list_widget, "load_albums"):
                     albums_list_widget.load_albums()
             except Exception as e:
                 log(f"  - Error reloading albums: {e}")
         else:
             log("  - Login not completed yet")
-            if hasattr(self, 'login_modal') and self.login_modal:
-                self.login_modal.update_status("Not logged in yet. Please complete the login process.")
+            if hasattr(self, "login_modal") and self.login_modal:
+                self.login_modal.update_status(
+                    "Not logged in yet. Please complete the login process."
+                )
 
     def action_show_player(self) -> None:
         """Switch to player page."""
@@ -238,27 +251,9 @@ class TtydalApp(App):
             player_page.focus_tracks()
 
     def action_toggle_play(self) -> None:
-        """Toggle play/pause or play selected track (smart behavior).
-
-        Behavior:
-        - If tracks list is focused: delegate to TracksList (smart play/pause)
-        - If tracks list is not focused: toggle pause/play
-        """
+        """Toggle play/pause globally on player page."""
         log("TtydalApp.action_toggle_play() called")
         if self.current_page == "player":
-            # Check if tracks list is focused - if so, let it handle space (smart behavior)
-            try:
-                focused = self.focused
-                # If a ListView inside TracksList has focus, let TracksList handle it
-                if focused and focused.id == "tracks-listview":
-                    log("  - TracksList focused, delegating to TracksList.action_play_selected_track()")
-                    # The binding priority will let TracksList handle it
-                    return
-            except Exception as e:
-                log(f"  - Error checking focus: {e}")
-
-            # Not on tracks list, just toggle pause/play
-            log("  - Not on tracks list, toggling pause/play")
             player_page = self.query_one(PlayerPage)
             player_page.toggle_playback()
         else:
@@ -317,9 +312,7 @@ class TtydalApp(App):
             player_page = self.query_one(PlayerPage)
             player_page.play_previous()
 
-    def on_config_page_theme_changed(
-        self, event: ConfigPage.ThemeChanged
-    ) -> None:
+    def on_config_page_theme_changed(self, event: ConfigPage.ThemeChanged) -> None:
         """Handle theme setting change.
 
         Args:
@@ -328,9 +321,7 @@ class TtydalApp(App):
         # Apply the new theme
         self.theme = event.theme
 
-    def on_config_page_quality_changed(
-        self, event: ConfigPage.QualityChanged
-    ) -> None:
+    def on_config_page_quality_changed(self, event: ConfigPage.QualityChanged) -> None:
         """Handle quality setting change.
 
         Args:
@@ -341,9 +332,7 @@ class TtydalApp(App):
         player_bar = player_page.query_one(PlayerBar)
         player_bar.update_quality_display(event.quality)
 
-    def on_config_page_login_requested(
-        self, event: ConfigPage.LoginRequested
-    ) -> None:
+    def on_config_page_login_requested(self, event: ConfigPage.LoginRequested) -> None:
         """Handle login request from config page.
 
         Args:
@@ -363,6 +352,7 @@ class TtydalApp(App):
         log("Clear logs requested from config page")
         try:
             from pathlib import Path
+
             log_file = Path.home() / ".ttydal" / "debug.log"
 
             if log_file.exists():

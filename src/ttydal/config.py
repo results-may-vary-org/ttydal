@@ -6,7 +6,6 @@ Manages application configuration stored in ~/.ttydal/config.json
 import json
 from pathlib import Path
 from typing import Any
-from ttydal.logger import log
 
 
 class ConfigManager:
@@ -26,37 +25,29 @@ class ConfigManager:
         if self._initialized:
             return
 
-        log("ConfigManager.__init__() called")
         self.config_dir = Path.home() / ".ttydal"
         self.config_file = self.config_dir / "config.json"
-        log(f"  - Config file path: {self.config_file}")
         self._config: dict[str, Any] = {}
         self._load_config()
         self._initialized = True
-        log("ConfigManager.__init__() completed")
 
     def _load_config(self) -> None:
         """Load configuration from file or create default config."""
-        log("  - ConfigManager._load_config() called")
         self.config_dir.mkdir(parents=True, exist_ok=True)
 
         if self.config_file.exists():
-            log(f"  - Loading existing config from {self.config_file}")
             with open(self.config_file, "r") as f:
                 self._config = json.load(f)
-            log(f"  - Config loaded: {self._config}")
         else:
-            log("  - No config file found, creating default config")
             # Default configuration
             self._config = {
                 "theme": "textual-dark",
                 "quality": "high",  # high or low
                 "auto_play": True,  # auto-play next track when current finishes
-                "debug_logging_enabled": True,  # enable debug logging to ~/.ttydal/debug.log
-                "api_logging_enabled": True  # enable API request/response logging to ~/.ttydal/debug-api.log
+                "debug_logging_enabled": False,  # enable debug logging to ~/.ttydal/debug.log
+                "api_logging_enabled": False,  # enable API request/response logging to ~/.ttydal/debug-api.log
             }
             self._save_config()
-            log(f"  - Default config created: {self._config}")
 
     def _save_config(self) -> None:
         """Save configuration to file."""

@@ -4,11 +4,10 @@ This module intercepts all HTTP requests made by the application and logs
 them to a dedicated debug-api.log file with full details.
 """
 
-import functools
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 class APILogger:
@@ -25,17 +24,30 @@ class APILogger:
         return cls._instance
 
     def __init__(self):
-        """Initialize the API logger."""
+        """Initialize the API logger (lazy - no files created here)."""
         if self._initialized:
             return
 
         self.log_dir = Path.home() / ".ttydal"
         self.log_file = self.log_dir / "debug-api.log"
-        self._setup_log_file()
+        self._file_setup_done = False
         self._initialized = True
 
+    def _is_logging_enabled(self) -> bool:
+        """Check if API logging is enabled in config."""
+        try:
+            from ttydal.config import ConfigManager
+
+            config = ConfigManager()
+            return config.api_logging_enabled
+        except Exception:
+            return False
+
     def _setup_log_file(self) -> None:
-        """Setup the API log file."""
+        """Setup the API log file (called lazily on first log)."""
+        if self._file_setup_done:
+            return
+
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
         # ASCII art header
@@ -49,10 +61,12 @@ class APILogger:
 
         # Write session start marker
         with open(self.log_file, "a", encoding="utf-8") as f:
-            f.write(f"\n{'='*100}\n")
+            f.write(f"\n{'=' * 100}\n")
             f.write(ascii_art)
             f.write(f"API Logging Session started at {datetime.now().isoformat()}\n")
-            f.write(f"{'='*100}\n\n")
+            f.write(f"{'=' * 100}\n\n")
+
+        self._file_setup_done = True
 
     def _format_headers(self, headers: dict) -> str:
         """Format headers for logging.
@@ -68,7 +82,7 @@ class APILogger:
 
         lines = []
         for key, value in headers.items():
-          lines.append(f"  {key}: {value}")
+            lines.append(f"  {key}: {value}")
         return "\n".join(lines)
 
     def _format_cookies(self, cookies: Any) -> str:
@@ -84,9 +98,11 @@ class APILogger:
             return "  (no cookies)"
 
         # Handle different cookie types
-        if hasattr(cookies, 'items'):
-            cookie_dict = dict(cookies.items()) if hasattr(cookies, 'items') else cookies
-        elif hasattr(cookies, 'get_dict'):
+        if hasattr(cookies, "items"):
+            cookie_dict = (
+                dict(cookies.items()) if hasattr(cookies, "items") else cookies
+            )
+        elif hasattr(cookies, "get_dict"):
             cookie_dict = cookies.get_dict()
         else:
             return f"  {cookies}"
@@ -96,7 +112,7 @@ class APILogger:
 
         lines = []
         for key, value in cookie_dict.items():
-          lines.append(f"  {key}: {value}")
+            lines.append(f"  {key}: {value}")
         return "\n".join(lines)
 
     def _format_body(self, body: Any, content_type: str = "") -> str:
@@ -116,7 +132,7 @@ class APILogger:
         if isinstance(body, bytes):
             # Try to decode as text
             try:
-                body = body.decode('utf-8')
+                body = body.decode("utf-8")
             except UnicodeDecodeError:
                 return f"  (binary data, {len(body)} bytes)"
 
@@ -131,7 +147,7 @@ class APILogger:
         body_str = str(body)
 
         # Try to parse as JSON for pretty printing
-        if 'json' in content_type.lower() or body_str.strip().startswith(('{', '[')):
+        if "json" in content_type.lower() or body_str.strip().startswith(("{", "[")):
             try:
                 parsed = json.loads(body_str)
                 return "  " + json.dumps(parsed, indent=2).replace("\n", "\n  ")
@@ -166,49 +182,49 @@ class APILogger:
             response_body: Response body content (NOT TRUNCATED)
             elapsed_time: Request duration in seconds
         """
-        # Check if API logging is enabled
-        try:
-            # Import here to avoid circular dependency
-            from ttydal.config import ConfigManager
-            config = ConfigManager()
-            if not config.api_logging_enabled:
-                return
-        except Exception:
-            # If config check fails, continue logging (fail-safe)
-            pass
+        # Check if API logging is enabled FIRST
+        if not self._is_logging_enabled():
+            return
+
+        # Setup log file lazily (only if logging is enabled)
+        self._setup_log_file()
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
 
         log_entry = []
-        log_entry.append(f"\n{'='*100}")
+        log_entry.append(f"\n{'=' * 100}")
         log_entry.append(f"[{timestamp}] HTTP REQUEST/RESPONSE")
-        log_entry.append(f"{'='*100}")
+        log_entry.append(f"{'=' * 100}")
 
         # Request section
-        log_entry.append(f"\n>>> REQUEST:")
+        log_entry.append("\n>>> REQUEST:")
         log_entry.append(f"Method: {method}")
         log_entry.append(f"URL: {url}")
-        log_entry.append(f"\nHeaders:")
+        log_entry.append("\nHeaders:")
         log_entry.append(self._format_headers(request_headers))
-        log_entry.append(f"\nCookies:")
+        log_entry.append("\nCookies:")
         log_entry.append(self._format_cookies(request_cookies))
-        log_entry.append(f"\nBody:")
+        log_entry.append("\nBody:")
 
-        content_type = request_headers.get('Content-Type', '') if request_headers else ''
+        content_type = (
+            request_headers.get("Content-Type", "") if request_headers else ""
+        )
         log_entry.append(self._format_body(request_body, content_type))
 
         # Response section
-        log_entry.append(f"\n<<< RESPONSE:")
+        log_entry.append("\n<<< RESPONSE:")
         log_entry.append(f"Status: {response_status}")
         log_entry.append(f"Elapsed: {elapsed_time:.3f}s")
-        log_entry.append(f"\nHeaders:")
+        log_entry.append("\nHeaders:")
         log_entry.append(self._format_headers(response_headers))
-        log_entry.append(f"\nBody (FULL CONTENT, NO TRUNCATION):")
+        log_entry.append("\nBody (FULL CONTENT, NO TRUNCATION):")
 
-        response_content_type = response_headers.get('Content-Type', '') if response_headers else ''
+        response_content_type = (
+            response_headers.get("Content-Type", "") if response_headers else ""
+        )
         log_entry.append(self._format_body(response_body, response_content_type))
 
-        log_entry.append(f"\n{'='*100}\n")
+        log_entry.append(f"\n{'=' * 100}\n")
 
         # Write to file
         try:
@@ -225,25 +241,28 @@ class APILogger:
         """
         try:
             import requests
-            from requests.adapters import HTTPAdapter
 
             # Store original request method if not already stored
             if APILogger._original_request is None:
                 APILogger._original_request = requests.Session.request
 
             # Create wrapper function
-            def logged_request(session_self: Any, method: str, url: str, **kwargs: Any) -> Any:
+            def logged_request(
+                session_self: Any, method: str, url: str, **kwargs: Any
+            ) -> Any:
                 """Wrapped request method that logs all calls."""
                 import time
 
                 # Extract request details
-                request_headers = kwargs.get('headers', {})
-                request_cookies = kwargs.get('cookies', session_self.cookies)
-                request_body = kwargs.get('data') or kwargs.get('json')
+                request_headers = kwargs.get("headers", {})
+                request_cookies = kwargs.get("cookies", session_self.cookies)
+                request_body = kwargs.get("data") or kwargs.get("json")
 
                 # Make the actual request
                 start_time = time.time()
-                response = APILogger._original_request(session_self, method, url, **kwargs)
+                response = APILogger._original_request(
+                    session_self, method, url, **kwargs
+                )
                 elapsed_time = time.time() - start_time
 
                 # Extract response details
@@ -254,9 +273,9 @@ class APILogger:
                 try:
                     # For streaming responses, we can't easily log the full body
                     # without consuming it. Try to get it safely.
-                    if hasattr(response, '_content') and response._content is not None:
+                    if hasattr(response, "_content") and response._content is not None:
                         response_body = response._content
-                    elif hasattr(response, 'text'):
+                    elif hasattr(response, "text"):
                         response_body = response.text
                     else:
                         response_body = "(streaming response, body not captured)"

@@ -9,7 +9,7 @@ from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
 from ttydal.tidal_client import TidalClient
-from ttydal.services import TracksService
+from ttydal.services import TracksService, TidalServiceError
 from ttydal.logger import log
 
 
@@ -17,7 +17,7 @@ class TracksList(Container):
     """Tracks list widget for browsing and selecting tracks."""
 
     BINDINGS = [
-        Binding("space", "play_selected_track", "Play/Pause", show=True, priority=True),
+        Binding("enter", "play_selected_track", "Play Track", show=True),
         Binding("r", "refresh_tracks", "Refresh", show=True),
     ]
 
@@ -60,8 +60,7 @@ class TracksList(Container):
     def __init__(self):
         """Initialize the tracks list."""
         super().__init__()
-        self.tidal = TidalClient()
-        self.tracks_service = TracksService(self.tidal)
+        self.tracks_service = TracksService(TidalClient())
         self.tracks = []
         self.current_album_name = ""
         self.current_item_id = None
@@ -258,58 +257,64 @@ class TracksList(Container):
             item_name: The item name for display
             item_type: Type of item ('album', 'playlist', or 'favorites')
         """
-        # Load tracks based on item type
-        log(f"  - Loading tracks for type: {item_type}")
-        if item_type == "favorites":
-            # Load favorite tracks
-            tracks_list = await self.tracks_service.get_favorites_tracks()
-        elif item_type == "playlist":
-            # Load playlist tracks
-            tracks_list = await self.tracks_service.get_playlist_tracks(item_id)
-        else:  # album
-            # Load album tracks
-            tracks_list = await self.tracks_service.get_album_tracks(item_id)
+        try:
+            # Load tracks based on item type
+            log(f"  - Loading tracks for type: {item_type}")
+            if item_type == "favorites":
+                # Load favorite tracks
+                tracks_list = await self.tracks_service.get_favorites_tracks()
+            elif item_type == "playlist":
+                # Load playlist tracks
+                tracks_list = await self.tracks_service.get_playlist_tracks(item_id)
+            else:  # album
+                # Load album tracks
+                tracks_list = await self.tracks_service.get_album_tracks(item_id)
 
-        log(f"  - Retrieved {len(tracks_list)} tracks")
+            log(f"  - Retrieved {len(tracks_list)} tracks")
 
-        # Populate ALL tracks
-        list_view = self.query_one("#tracks-listview", ListView)
-        for idx, track in enumerate(tracks_list, 1):
-            track_name = track["name"]
-            artist = track.get("artist", "Unknown")
-            duration = self._format_duration(track["duration"])
+            # Populate ALL tracks
+            list_view = self.query_one("#tracks-listview", ListView)
+            for idx, track in enumerate(tracks_list, 1):
+                track_name = track["name"]
+                artist = track.get("artist", "Unknown")
+                duration = self._format_duration(track["duration"])
 
-            # Get album name from track or use the current item name
-            album_name = track.get("album", item_name)
+                # Get album name from track or use the current item name
+                album_name = track.get("album", item_name)
 
-            list_view.append(
-                ListItem(Label(f"{idx}. {track_name} - {artist} ({duration})"))
-            )
-            self.tracks.append(
-                {
-                    "id": str(track["id"]),
-                    "name": track_name,
-                    "artist": artist,
-                    "album": album_name,
-                    "duration": track["duration"],
-                }
-            )
+                list_view.append(
+                    ListItem(Label(f"{idx}. {track_name} - {artist} ({duration})"))
+                )
+                self.tracks.append(
+                    {
+                        "id": str(track["id"]),
+                        "name": track_name,
+                        "artist": artist,
+                        "album": album_name,
+                        "duration": track["duration"],
+                    }
+                )
 
-        log(f"  - Populated {len(self.tracks)} tracks in UI")
+            log(f"  - Populated {len(self.tracks)} tracks in UI")
 
-        # Update header to remove loading text
-        header = self.query_one(Label)
-        header.update(f"(t)racks - {item_name}")
+            # Update header to remove loading text
+            header = self.query_one(Label)
+            header.update(f"(t)racks - {item_name}")
 
-        # Regenerate shuffle order if shuffle is enabled
-        from ttydal.config import ConfigManager
+            # Regenerate shuffle order if shuffle is enabled
+            from ttydal.config import ConfigManager
 
-        config = ConfigManager()
-        if config.shuffle:
-            self._generate_shuffle_order()
+            config = ConfigManager()
+            if config.shuffle:
+                self._generate_shuffle_order()
 
-        # Update visual indicators (in case we're reloading while a track is playing)
-        self._update_track_indicators()
+            # Update visual indicators (in case we're reloading while a track is playing)
+            self._update_track_indicators()
+        except TidalServiceError as e:
+            log(f"TracksList: Service error loading tracks: {e}")
+            header = self.query_one(Label)
+            header.update(f"(t)racks - {item_name} (error)")
+            self.app.notify(e.user_message, severity="error", timeout=5)
 
     def _format_duration(self, seconds: int) -> str:
         """Format duration in seconds to MM:SS.

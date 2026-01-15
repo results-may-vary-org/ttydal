@@ -1,6 +1,7 @@
 """Player page showing albums, tracks and playback controls."""
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal
 
 from ttydal.components.player_bar import PlayerBar
@@ -14,6 +15,10 @@ from ttydal.services import PlaybackService
 
 class PlayerPage(Container):
     """Player page containing all playback UI components."""
+
+    BINDINGS = [
+        Binding("space", "toggle_playback", "Play/Pause", show=False),
+    ]
 
     DEFAULT_CSS = """
     PlayerPage {
@@ -129,8 +134,15 @@ class PlayerPage(Container):
         list_view = tracks_list.query_one("#tracks-listview")
         list_view.focus()
 
+    def action_toggle_playback(self) -> None:
+        """Toggle play/pause (spacebar action at PlayerPage level)."""
+        from ttydal.logger import log
+
+        log("PlayerPage.action_toggle_playback() called")
+        self.player.toggle_pause()
+
     def toggle_playback(self) -> None:
-        """Toggle play/pause."""
+        """Toggle play/pause (called from app level)."""
         from ttydal.logger import log
 
         log("PlayerPage.toggle_playback() called")
