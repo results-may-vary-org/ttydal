@@ -124,18 +124,22 @@ class SearchModal(ModalScreen):
     class TrackSelected(Message):
         """Message sent when a track is selected from search results for playback."""
 
-        def __init__(self, track_id: str, track_info: dict, album_id: str) -> None:
+        def __init__(
+            self, track_id: str, track_info: dict, album_id: str, play: bool = True
+        ) -> None:
             """Initialize track selected message.
 
             Args:
                 track_id: The selected track ID
                 track_info: Track metadata
                 album_id: The album containing the track
+                play: Whether to play the track (True) or just navigate to it (False)
             """
             super().__init__()
             self.track_id = track_id
             self.track_info = track_info
             self.album_id = album_id
+            self.play = play
 
     def __init__(self, albums: list, tracks: list) -> None:
         """Initialize the search modal.
@@ -308,13 +312,13 @@ class SearchModal(ModalScreen):
                 )
             )
         else:
-            # For tracks, navigate to the containing album
-            # We post AlbumSelected so the app navigates to the album
+            # For tracks, navigate to the track (don't play, just highlight)
             self.post_message(
-                self.AlbumSelected(
+                self.TrackSelected(
+                    selected.item_id,
+                    selected.track_info or {},
                     selected.album_id or "",
-                    selected.track_info.get("album", "") if selected.track_info else "",
-                    selected.album_type or "album",
+                    play=False,  # Enter = navigate only, don't play
                 )
             )
 

@@ -373,14 +373,23 @@ class TtydalApp(App):
                     # Select the album in the list view
                     list_view = albums_list.query_one("#albums-listview")
                     list_view.index = idx
+                    # Scroll to make the selected album visible
+                    list_view.call_after_refresh(
+                        list_view.scroll_to_widget,
+                        list_view._nodes[idx],
+                        animate=False,
+                    )
                     # Trigger the album selection to load tracks
                     albums_list.post_message(
                         AlbumsList.AlbumSelected(
                             event.album_id, event.album_name, event.album_type
                         )
                     )
-                    # Focus the albums list
-                    list_view.focus()
+                    # Focus the tracks list after album selection
+                    # (tracks will be loaded and this gives better UX)
+                    tracks_list = player_page.query_one(TracksList)
+                    tracks_listview = tracks_list.query_one("#tracks-listview")
+                    tracks_listview.focus()
                     return
 
             log(f"  - Album {event.album_id} not found in list")
@@ -388,48 +397,113 @@ class TtydalApp(App):
             log(f"  - Error selecting album: {e}")
 
     def on_search_modal_track_selected(self, event: SearchModal.TrackSelected) -> None:
-        """Handle track selection from search modal for playback.
+        """Handle track selection from search modal.
 
         Args:
-            event: Track selected event
+            event: Track selected event (play=True for Space, play=False for Enter)
         """
         log(
-            f"TtydalApp: Track selected from search - {event.track_info.get('name', 'Unknown')}"
+            f"TtydalApp: Track selected from search - {event.track_info.get('name', 'Unknown')} (play={event.play})"
         )
 
         # Switch to player page if not already there
         if self.current_page != "player":
             self.action_show_player()
 
-        # Play the track directly through PlayerPage
         try:
             player_page = self.query_one(PlayerPage)
+            albums_list = player_page.query_one(AlbumsList)
             tracks_list = player_page.query_one(TracksList)
 
-            # Find the track index in the current tracks list
+            # Check if we need to load a different album
+            current_album_id = tracks_list.current_item_id
+            target_album_id = event.album_id
+
+            if current_album_id != target_album_id:
+                # Need to load the album first, then navigate to track
+                log(
+                    f"  - Loading album {target_album_id} (current: {current_album_id})"
+                )
+
+                # Find and select the album
+                for idx, album in enumerate(albums_list.albums):
+                    if album["id"] == target_album_id:
+                        albums_listview = albums_list.query_one("#albums-listview")
+                        albums_listview.index = idx
+
+                        # Load the album tracks
+                        tracks_list.load_tracks(
+                            album["id"], album["name"], album["type"]
+                        )
+                        break
+
+                # Schedule the track selection after tracks are loaded
+                def select_track_after_load():
+                    self._select_and_maybe_play_track(
+                        tracks_list, event.track_id, event.track_info, event.play
+                    )
+
+                self.set_timer(0.5, select_track_after_load)
+            else:
+                # Album already loaded, just select/play the track
+                log("  - Album already loaded, selecting track directly")
+                self._select_and_maybe_play_track(
+                    tracks_list, event.track_id, event.track_info, event.play
+                )
+
+        except Exception as e:
+            log(f"  - Error handling track selection: {e}")
+
+    def _select_and_maybe_play_track(
+        self, tracks_list: TracksList, track_id: str, track_info: dict, play: bool
+    ) -> None:
+        """Select a track in the list and optionally play it.
+
+        Args:
+            tracks_list: The TracksList component
+            track_id: ID of the track to select
+            track_info: Track metadata
+            play: Whether to play the track
+        """
+        try:
+            # Find the track index
             track_index = None
             for idx, track in enumerate(tracks_list.tracks):
-                if track["id"] == event.track_id:
+                if track["id"] == track_id:
                     track_index = idx
                     break
 
             if track_index is not None:
-                # Update the current playing index
-                tracks_list.current_playing_index = track_index
-                tracks_list._playing_item_id = tracks_list.current_item_id
-                tracks_list._update_track_indicators()
-
                 # Select the track in the list view
                 list_view = tracks_list.query_one("#tracks-listview")
                 list_view.index = track_index
 
-            # Post the track selected message to trigger playback
-            tracks_list.post_message(
-                TracksList.TrackSelected(event.track_id, event.track_info)
-            )
-            log("  - Posted TrackSelected message for playback")
+                # Scroll to make the selected track visible and focus the list
+                if track_index < len(list_view._nodes):
+                    list_view.call_after_refresh(
+                        list_view.scroll_to_widget,
+                        list_view._nodes[track_index],
+                        animate=False,
+                    )
+                list_view.focus()
+
+                if play:
+                    # Update playing state and play the track
+                    tracks_list.current_playing_index = track_index
+                    tracks_list._playing_item_id = tracks_list.current_item_id
+                    tracks_list._update_track_indicators()
+
+                    # Post the track selected message to trigger playback
+                    tracks_list.post_message(
+                        TracksList.TrackSelected(track_id, track_info)
+                    )
+                    log("  - Posted TrackSelected message for playback")
+                else:
+                    log(f"  - Track selected at index {track_index} (not playing)")
+            else:
+                log(f"  - Track {track_id} not found in current tracks list")
         except Exception as e:
-            log(f"  - Error playing track: {e}")
+            log(f"  - Error selecting track: {e}")
 
     def on_config_page_theme_changed(self, event: ConfigPage.ThemeChanged) -> None:
         """Handle theme setting change.
