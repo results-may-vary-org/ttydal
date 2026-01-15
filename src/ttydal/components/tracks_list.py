@@ -28,6 +28,10 @@ class TracksList(Container):
         border: solid $accent;
     }
 
+    TracksList.loading #tracks-listview {
+        hatch: cross $primary 40%;
+    }
+
     TracksList:focus-within {
         border: solid $primary;
     }
@@ -233,6 +237,9 @@ class TracksList(Container):
         self.current_item_id = item_id
         self.current_item_type = item_type
 
+        # Add loading class for visual feedback
+        self.add_class("loading")
+
         # Update header to show loading
         header = self.query_one(Label)
         header.update(f"(t)racks - {item_name} (Loading...)")
@@ -315,6 +322,9 @@ class TracksList(Container):
             header = self.query_one(Label)
             header.update(f"(t)racks - {item_name} (error)")
             self.app.notify(e.user_message, severity="error", timeout=5)
+        finally:
+            # Remove loading class when done (success or error)
+            self.remove_class("loading")
 
     def _format_duration(self, seconds: int) -> str:
         """Format duration in seconds to MM:SS.

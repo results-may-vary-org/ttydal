@@ -25,6 +25,10 @@ class AlbumsList(Container):
         border: solid $accent;
     }
 
+    AlbumsList.loading #albums-listview {
+        hatch: cross $primary 40%;
+    }
+
     AlbumsList:focus-within {
         border: solid $primary;
     }
@@ -77,6 +81,8 @@ class AlbumsList(Container):
     def delayed_load(self) -> None:
         """Load albums after a delay to ensure session is ready."""
         log("AlbumsList.delayed_load() called")
+        # Add loading class for visual feedback
+        self.add_class("loading")
         # Run loading in a worker - exclusive=True prevents race conditions
         self.run_worker(self._load_albums_async(), exclusive=True)
 
@@ -97,6 +103,8 @@ class AlbumsList(Container):
     def load_albums(self) -> None:
         """Load user albums and playlists from Tidal."""
         log("AlbumsList.load_albums() called")
+        # Add loading class for visual feedback
+        self.add_class("loading")
         # Show loading in header
         header = self.query_one(Label)
         header.update("(a)lbums & playlists (loading...)")
@@ -187,6 +195,9 @@ class AlbumsList(Container):
             header = self.query_one(Label)
             header.update("(a)lbums & playlists (error)")
             self.app.notify(e.user_message, severity="error", timeout=5)
+        finally:
+            # Remove loading class when done (success or error)
+            self.remove_class("loading")
 
     def set_playing_item(self, item_id: str) -> None:
         """Mark an album/playlist as currently playing.
