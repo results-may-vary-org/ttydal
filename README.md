@@ -30,9 +30,7 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Fully keyboard-driven interface
 - Settings auto-save on change
 
-<p align="center">
-  <video src="assets/cast.mp4" controls></video>
-</p>
+https://github.com/user-attachments/assets/0863091c-db55-41a4-9bde-53f32926bbcb
 
 ## Requirements
 
