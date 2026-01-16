@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://github.com/results-may-vary-org/ttydal">
-    <img alt="Tape" src=".github/assets/ttydalscreen.png"/>
+    <img alt="ttydal screenshot" src="assets/ttydalscreen.png"/>
   </a>
 </p>
 <h1 align="center">ttydal - Tidal in your termial!</h1>
