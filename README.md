@@ -31,7 +31,7 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Settings auto-save on change
 
 <p align="center">
-  <img alt="ttydal cast" src="assets/cast.gif"/>
+  <video src="assets/cast.mp4" controls></video>
 </p>
 
 ## Requirements
