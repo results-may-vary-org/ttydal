@@ -1,6 +1,6 @@
 [project]
 name = "ttydal"
-version = "1.0.0"
+version = "1.0.1"
 description = "Tidal in your terminal!"
 readme = "README.md"
 license = "AGPL-3.0-or-later"

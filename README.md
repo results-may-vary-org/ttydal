@@ -1,6 +1,11 @@
-# ttydal
+<p align="center">
+  <a href="https://github.com/results-may-vary-org/ttydal">
+    <img alt="Tape" src=".github/assets/ttydalscreen.png"/>
+  </a>
+</p>
+<h1 align="center">ttydal - Tidal in your termial!</h1>
 
-Tidal but in your terminal !
+<img alt="Static Badge" src="https://img.shields.io/badge/Still_maintained-Yes_%3A)-green">
 
 ## Inspiration
 
@@ -38,16 +43,16 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 
 Package deployement in progess :)
 
-<!-- ```bash -->
-<!-- # pipx (recommended) -->
-<!-- pipx install sqlit-tui -->
-<!---->
-<!-- # uv -->
-<!-- uv tool install sqlit-tui -->
-<!---->
-<!-- # pip -->
-<!-- pip install sqlit-tui -->
-<!-- ``` -->
+```bash
+# pipx
+pipx install sqlit-tui
+
+# uv
+uv tool install sqlit-tui
+
+# pip
+pip install sqlit-tui
+```
 
 ### For development
 
@@ -162,48 +167,22 @@ ttydal uses an intelligent caching system for tracks to improve performance and 
 
 ### How it works
 
-- **In-memory cache**: tracks are cached in memory (lost on app restart)
-- **TTL of 1 hour**: each cached album/playlist expires after 1 hour
-- **Max 50,000 tracks**: cache is limited by total track count, not album count. This handles albums with varying sizes (some playlists can have 5000+ tracks)
-- **LRU eviction**: when cache is full, oldest entries are evicted first
-- **Auto-preload**: on startup, all albums are automatically preloaded into cache in the background
-- **Smart search**: search (`/`) works across ALL cached tracks from all loaded albums
+- In-memory cache: tracks are cached in memory (lost on app restart)
+- TTL of 1 hour: each cached album/playlist expires after 1 hour
+- Max 50,000 tracks: cache is limited by total track count, not album count.
+- LRU eviction: when cache is full, oldest entries are evicted first
+- Auto-preload: on startup, all albums are automatically preloaded into cache in the background (mostly for the search feature)
 
 ### Cache info modal
 
-Press `i` to open the cache info modal and see current cache statistics:
-
-```
-        Cache Status
-
-   Tracks Cached
-   ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁ ⛁   25.0K/50.0K
-
-   Albums: 42
-   TTL: 1 hour
-
-   ● complete  ● progress  ● pending
-
-   Press ESC to close
-```
-
-The visual bar shows cache usage with theme-aware colors:
-- **Complete** (theme success color): filled cache slots
-- **Progress** (theme warning color): current slot being filled
-- **Pending** (theme muted color): empty slots available
+Press `i` to open the cache info modal and see current cache statistics.
 
 ### Cache invalidation
 
 If you make changes to your playlists/favorites on the Tidal website:
 
-- Press `r` on *Albums* list: clears the entire tracks cache and reloads albums
-- Press `r` on *Tracks* list: invalidates only the current album/playlist cache and reloads
-
-### Why albums list is not (yet) cached
-
-The albums list is intentionally not cached because:
-1. users rarely reload it after initial load
-2. it's a small dataset that loads quickly
+- Press `r` on *Albums* list that clears the entire tracks cache and reloads albums
+- Press `r` on *Tracks* list that invalidates only the current album/playlist cache and reloads
 
 ## Code of conduct, license, authors, changelog, contributing
 
