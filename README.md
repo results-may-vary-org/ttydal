@@ -30,6 +30,10 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Fully keyboard-driven interface
 - Settings auto-save on change
 
+<p align="center">
+  <img alt="ttydal cast" src="assets/cast.gif"/>
+</p>
+
 ## Requirements
 
 - Python 3.13 or higher
