@@ -25,6 +25,12 @@ class ConfigPage(Container):
         ("Nord", "nord"),
         ("Tokyo Night", "tokyo-night"),
         ("Solarized Light", "solarized-light"),
+        ("Solarized Dark", "solarized-dark"),
+        ("Rose Pine", "rose-pine"),
+        ("Rose Pine Moon", "rose-pine-moon"),
+        ("Rose Pine Dawn", "rose-pine-dawn"),
+        ("Atom One Dark", "atom-one-dark"),
+        ("Atom One Light", "atom-one-light"),
     ]
 
     DEFAULT_CSS = """
@@ -114,10 +120,12 @@ class ConfigPage(Container):
 
     class LoginRequested(Message):
         """Message sent when user requests to login to Tidal."""
+
         pass
 
     class ClearLogsRequested(Message):
         """Message sent when user requests to clear debug logs."""
+
         pass
 
     def __init__(self):
@@ -129,11 +137,19 @@ class ConfigPage(Container):
         """Compose the config page UI."""
         # Valid theme options - extract just the theme IDs
         valid_theme_ids = [theme_id for _, theme_id in self.AVAILABLE_THEMES]
-        theme_value = self.config.theme if self.config.theme in valid_theme_ids else "textual-dark"
+        theme_value = (
+            self.config.theme
+            if self.config.theme in valid_theme_ids
+            else "rose-pine"
+        )
 
         # Valid quality options
         valid_qualities = ["max", "high", "low"]
-        quality_value = self.config.quality if self.config.quality in valid_qualities else "high"
+        quality_value = (
+            self.config.quality
+            if self.config.quality in valid_qualities
+            else "high"
+        )
 
         with VerticalScroll():
             with Vertical():
@@ -141,9 +157,7 @@ class ConfigPage(Container):
 
                 yield Label("Theme:")
                 yield Select(
-                    options=self.AVAILABLE_THEMES,
-                    value=theme_value,
-                    id="theme-select"
+                    options=self.AVAILABLE_THEMES, value=theme_value, id="theme-select"
                 )
 
                 yield Label("Audio Quality:")
@@ -151,10 +165,10 @@ class ConfigPage(Container):
                     options=[
                         ("Max (Hi-Res Lossless - up to 24bit/192kHz)", "max"),
                         ("High (Lossless - 16bit/44.1kHz)", "high"),
-                        ("Low (320kbps AAC)", "low")
+                        ("Low (320kbps AAC)", "low"),
                     ],
                     value=quality_value,
-                    id="quality-select"
+                    id="quality-select",
                 )
 
                 with Horizontal():
@@ -172,20 +186,25 @@ class ConfigPage(Container):
 
                 with Horizontal():
                     yield Label("Debug Logging:")
-                    yield Switch(value=self.config.debug_logging_enabled, id="debug-logging-switch")
+                    yield Switch(
+                        value=self.config.debug_logging_enabled,
+                        id="debug-logging-switch",
+                    )
                 yield Label(
                     "[i]⚠ Warning: Debug logs can grow large over time. Disable when not needed.[/i]",
                     markup=True,
-                    classes="warning-label"
+                    classes="warning-label",
                 )
 
                 with Horizontal():
                     yield Label("API Request Logging:")
-                    yield Switch(value=self.config.api_logging_enabled, id="api-logging-switch")
+                    yield Switch(
+                        value=self.config.api_logging_enabled, id="api-logging-switch"
+                    )
                 yield Label(
                     "[i]⚠ Warning: API logs capture full requests/responses and can consume significant disk space.[/i]",
                     markup=True,
-                    classes="warning-label"
+                    classes="warning-label",
                 )
 
                 yield Button("Clear Debug Logs", variant="warning", id="clear-logs-btn")

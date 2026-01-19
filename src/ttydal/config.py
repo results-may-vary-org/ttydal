@@ -41,7 +41,7 @@ class ConfigManager:
         else:
             # Default configuration
             self._config = {
-                "theme": "textual-dark",
+                "theme": "rose-pine",
                 "quality": "high",  # high or low
                 "auto_play": True,  # auto-play next track when current finishes
                 "debug_logging_enabled": False,  # enable debug logging to ~/.ttydal/debug.log
