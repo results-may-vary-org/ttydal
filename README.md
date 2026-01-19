@@ -43,10 +43,8 @@ https://github.com/user-attachments/assets/0863091c-db55-41a4-9bde-53f32926bbcb
 
 ### For users
 
-Package deployement in progess :)
-
 ```bash
-# pipx
+# pipx (recommend)
 pipx install sqlit-tui
 
 # uv
