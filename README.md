@@ -33,7 +33,9 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - `new` Image caching for cover art (stored in `~/.cache/ttydal/images/`)
 - `new` Vibrant color mode - colorize player bar text with album's vibrant color
 
-https://github.com/user-attachments/assets/0863091c-db55-41a4-9bde-53f32926bbcb
+*warning: this video contain audio of music, mind your volume*
+
+https://github.com/user-attachments/assets/ea975bea-b8f6-4d1a-a309-ec2d54390c3a
 
 ## Requirements
 
