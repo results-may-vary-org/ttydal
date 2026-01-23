@@ -124,3 +124,13 @@ class ConfigManager:
     def shuffle(self, value: bool) -> None:
         """Set the shuffle setting."""
         self.set("shuffle", value)
+
+    @property
+    def vibrant_color(self) -> bool:
+        """Get the vibrant color setting (colorize player bar with album's vibrant color)."""
+        return self.get("vibrant_color", False)
+
+    @vibrant_color.setter
+    def vibrant_color(self, value: bool) -> None:
+        """Set the vibrant color setting."""
+        self.set("vibrant_color", value)

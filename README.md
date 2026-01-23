@@ -29,6 +29,9 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Multiple theme options for interface customization
 - Fully keyboard-driven interface
 - Settings auto-save on change
+- `new` Cover art display in albums list, tracks list, and player bar
+- `new` Image caching for cover art (stored in `~/.cache/ttydal/images/`)
+- `new` Vibrant color mode - colorize player bar text with album's vibrant color
 
 https://github.com/user-attachments/assets/0863091c-db55-41a4-9bde-53f32926bbcb
 
@@ -130,6 +133,7 @@ pip install sqlit-tui
 | `s` | Toggle shuffle mode on/off |
 | `r` | Refresh current list (also clears relevant cache) |
 | `i` | Open cache info modal |
+| `v` | Toggle vibrant mode |
 
 ### Login Modal
 
@@ -161,9 +165,13 @@ All settings are accessible via the Config page (press `c`).
 
 All settings are automatically saved when changed.
 
+## Images cache
+
+Loaded images are cached into `~/.cache/ttydal`.
+
 ## Tracks cache
 
-ttydal uses an intelligent caching system for tracks to improve performance and enable smart search.
+ttydal uses a caching system for tracks to improve performance and enable smart search.
 
 ### How it works
 

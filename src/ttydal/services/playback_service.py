@@ -17,6 +17,7 @@ class PlaybackResult:
     requested_quality: str | None = None
     actual_quality: str | None = None
     tried_qualities: list[str] | None = None
+    vibrant_color: str | None = None  # Album's vibrant color (e.g., "#f2d869")
 
 
 class PlaybackService:
@@ -33,7 +34,11 @@ class PlaybackService:
         self.player = player
 
     def play_track(
-        self, track_id: str, track_info: dict[str, Any], quality: str = "high"
+        self,
+        track_id: str,
+        track_info: dict[str, Any],
+        quality: str = "high",
+        fetch_vibrant_color: bool = False,
     ) -> PlaybackResult:
         """Play a track by ID with quality setting.
 
@@ -41,6 +46,7 @@ class PlaybackService:
             track_id: The track ID to play
             track_info: Track metadata dictionary (name, artist, etc.)
             quality: Quality setting ('max', 'high', or 'low')
+            fetch_vibrant_color: Whether to include the album's vibrant color
 
         Returns:
             PlaybackResult with success status and metadata
@@ -68,6 +74,12 @@ class PlaybackService:
             # Start playback
             self.player.play(track_url, track_info_with_metadata)
 
+            # Get vibrant color from the same API response (no extra call needed)
+            vibrant_color = None
+            if fetch_vibrant_color:
+                vibrant_color = error_info.get("vibrant_color")
+                log(f"  - Vibrant color: {vibrant_color}")
+
             log("  - Playback started successfully")
             log("=" * 80)
 
@@ -78,6 +90,7 @@ class PlaybackService:
                 requested_quality=error_info.get("requested_quality"),
                 actual_quality=error_info.get("actual_quality"),
                 tried_qualities=error_info.get("tried_qualities"),
+                vibrant_color=vibrant_color,
             )
 
         # Failed to get track URL

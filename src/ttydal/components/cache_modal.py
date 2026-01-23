@@ -4,9 +4,10 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
 from textual.screen import ModalScreen
-from textual.widgets import Label, Static
+from textual.widgets import Label, Rule, Static
 
 from ttydal.services.tracks_cache import TracksCache
+from ttydal.image_cache import ImageCache
 
 
 class CacheModal(ModalScreen):
@@ -24,10 +25,17 @@ class CacheModal(ModalScreen):
 
     #cache-container {
         width: 50;
-        height: 15;
+        height: 20;
         background: $surface;
-        keyline: heavy $primary;
         padding: 1;
+    }
+
+    #cache-container Label.section-title {
+        text-style: bold;
+        color: $secondary;
+        margin-top: 1;
+        text-align: center;
+        width: 100%;
     }
 
     #cache-container Label.title {
@@ -38,10 +46,8 @@ class CacheModal(ModalScreen):
         width: 100%;
     }
 
-    #cache-container Label.stat-label {
-        margin-top: 1;
+    #cache-container Static.stat-label {
         text-align: center;
-        width: 100%;
     }
 
     #cache-container Label.visual-bar {
@@ -90,10 +96,6 @@ class CacheModal(ModalScreen):
         height: auto;
         margin-top: 1;
     }
-
-    #legend-container Static {
-        width: auto;
-    }
     """
 
     def _get_icon_states(
@@ -137,40 +139,59 @@ class CacheModal(ModalScreen):
             return f"{count / 1000:.1f}K"
         return str(count)
 
+    def _format_size(self, size_mb: float) -> str:
+        """Format size in MB or KB."""
+        if size_mb >= 1:
+            return f"{size_mb:.1f} MB"
+        return f"{size_mb * 1024:.0f} KB"
+
     def compose(self) -> ComposeResult:
         """Compose the cache modal UI."""
-        cache = TracksCache()
-        stats = cache.get_stats()
+        # Tracks cache stats
+        tracks_cache = TracksCache()
+        tracks_stats = tracks_cache.get_stats()
 
-        albums_count = stats["albums_count"]
-        tracks_count = stats["tracks_count"]
-        max_tracks = stats["max_tracks"]
-        ttl_hours = stats["ttl"] // 3600
+        albums_count = tracks_stats["albums_count"]
+        tracks_count = tracks_stats["tracks_count"]
+        max_tracks = tracks_stats["max_tracks"]
+        ttl_hours = tracks_stats["ttl"] // 3600
+
+        # Image cache stats
+        image_cache = ImageCache()
+        image_stats = image_cache.get_stats()
+        image_count = image_stats["count"]
+        image_size_mb = image_stats["size_mb"]
 
         icon = "\u26c1"  # ⛁
         icon_states = self._get_icon_states(tracks_count, max_tracks)
+        album_label = "albums" if albums_count > 1 else "album"
+        track_label = "tracks" if tracks_count > 1 else "track"
         tracks_display = (
-            f"{self._format_count(tracks_count)}/{self._format_count(max_tracks)}"
+            f"{self._format_count(tracks_count)}/{self._format_count(max_tracks)} {track_label} over {albums_count} {album_label}"
         )
+
+        ttl_label = "hour" if ttl_hours == 1 else "hours"
 
         with Container(id="cache-container"):
             yield Label("Cache Status", classes="title")
-            yield Label("Tracks Cached", classes="stat-label")
+            yield Rule()
+
+            # Tracks cache section
+            yield Label(f"Tracks Cache (ttl {ttl_hours} {ttl_label})", classes="section-title")
             with Horizontal(id="visual-bar-container"):
                 for state in icon_states:
                     yield Static(icon, classes=state)
-                yield Static(f"  {tracks_display}")
-            yield Label(f"Albums: {albums_count}", classes="stat-label")
-            ttl_label = "hour" if ttl_hours == 1 else "hours"
-            yield Label(f"TTL: {ttl_hours} {ttl_label}", classes="stat-label")
-            # Legend showing color meanings
-            with Horizontal(id="legend-container"):
-                yield Static("●", classes="icon-complete")
-                yield Static(" complete  ")
-                yield Static("●", classes="icon-progress")
-                yield Static(" progress  ")
-                yield Static("●", classes="icon-pending")
-                yield Static(" pending")
+            yield Static(f"{tracks_display}", classes="stat-label")
+            yield Rule()
+
+            # Image cache section
+            yield Label("Cover Art Cache", classes="section-title")
+            yield Static(
+                f"Images: {image_count}  |  Size: {self._format_size(image_size_mb)}",
+                classes="stat-label",
+            )
+            yield Rule()
+
             yield Label("Press ESC to close", classes="hint")
 
     def action_close_modal(self) -> None:

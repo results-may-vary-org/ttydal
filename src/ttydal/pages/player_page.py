@@ -77,13 +77,26 @@ class PlayerPage(Container):
 
         # Use PlaybackService to handle playback
         result = self.playback_service.play_track(
-            event.track_id, event.track_info, self.config.quality
+            event.track_id,
+            event.track_info,
+            self.config.quality,
+            fetch_vibrant_color=self.config.vibrant_color,
         )
 
         if result.success:
-            # Update player bar with actual stream quality
+            # Update player bar with actual stream quality and cover art
             player_bar = self.query_one(PlayerBar)
             player_bar.update_stream_quality(result.stream_metadata)
+
+            # Update cover art
+            cover_url = event.track_info.get("cover_url")
+            player_bar.update_cover_art(cover_url)
+
+            # Update vibrant color if enabled
+            if self.config.vibrant_color and result.vibrant_color:
+                player_bar.update_vibrant_color(result.vibrant_color)
+            else:
+                player_bar.update_vibrant_color(None)
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)

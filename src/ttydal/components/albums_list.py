@@ -16,6 +16,7 @@ from ttydal.tidal_client import TidalClient
 from ttydal.services import AlbumsService, TracksService, TidalServiceError
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
+from ttydal.components.cover_art_item import CoverArtItem
 
 
 class AlbumsList(Container):
@@ -40,7 +41,7 @@ class AlbumsList(Container):
         border: solid $primary;
     }
 
-    AlbumsList Label {
+    AlbumsList > Label {
         background: $boost;
         width: 1fr;
         padding: 0 1;
@@ -48,6 +49,10 @@ class AlbumsList(Container):
 
     AlbumsList ListView {
         height: 1fr;
+    }
+
+    AlbumsList ListItem {
+        height: 3;
     }
     """
 
@@ -215,13 +220,21 @@ class AlbumsList(Container):
             favorites_info = await self.albums_service.get_favorites_info()
             fav_count = favorites_info["count"]
             log(f"  - Found {fav_count} favorite tracks")
-            list_view.append(ListItem(Label(f"My Tracks ({fav_count} tracks)")))
+            list_view.append(
+                ListItem(
+                    CoverArtItem(
+                        f"My Tracks ({fav_count} tracks)",
+                        cover_url=None,  # Favorites has no cover
+                    )
+                )
+            )
             self.albums = [
                 {
                     "id": "favorites",
                     "name": "My Tracks",
                     "type": "favorites",
                     "count": fav_count,
+                    "cover_url": None,
                 }
             ]
 
@@ -234,14 +247,18 @@ class AlbumsList(Container):
                 track_count = playlist.get("count")
                 if track_count is None:
                     track_count = "?"
+                cover_url = playlist.get("cover_url")
                 display_name = f"{playlist_name} ({track_count} tracks)"
-                list_view.append(ListItem(Label(display_name)))
+                list_view.append(
+                    ListItem(CoverArtItem(display_name, cover_url=cover_url))
+                )
                 self.albums.append(
                     {
                         "id": str(playlist["id"]),
                         "name": playlist_name,
                         "type": "playlist",
                         "count": track_count,
+                        "cover_url": cover_url,
                     }
                 )
             log(f"  - Loaded {len(user_playlists)} playlists")
@@ -255,14 +272,18 @@ class AlbumsList(Container):
                 track_count = album.get("count")
                 if track_count is None:
                     track_count = "?"
+                cover_url = album.get("cover_url")
                 display_name = f"{album_name} ({track_count} tracks)"
-                list_view.append(ListItem(Label(display_name)))
+                list_view.append(
+                    ListItem(CoverArtItem(display_name, cover_url=cover_url))
+                )
                 self.albums.append(
                     {
                         "id": str(album["id"]),
                         "name": album_name,
                         "type": "album",
                         "count": track_count,
+                        "cover_url": cover_url,
                     }
                 )
             log(f"  - Loaded {len(user_albums)} albums")
@@ -313,7 +334,6 @@ class AlbumsList(Container):
                 if idx < len(self.albums):
                     item = self.albums[idx]
                     item_name = item["name"]
-                    item_type = item["type"]
                     item_count = item["count"]
 
                     # Add ">" prefix if this is the currently playing item
@@ -321,16 +341,20 @@ class AlbumsList(Container):
                         "> " if item["id"] == self.current_playing_item_id else "  "
                     )
 
-                    # Format display based on type
-                    if item_type == "favorites":
-                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
-                    elif item_type == "playlist":
-                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
-                    else:  # album
-                        display_name = f"{prefix} {item_name} ({item_count} tracks)"
+                    # Format display (same for all types)
+                    display_name = f"{prefix} {item_name} ({item_count} tracks)"
 
-                    label = list_item.query_one(Label)
-                    label.update(display_name)
+                    # Update the CoverArtItem text
+                    try:
+                        cover_art_item = list_item.query_one(CoverArtItem)
+                        cover_art_item.update_text(display_name)
+                    except Exception:
+                        # Fallback to Label for backwards compatibility
+                        try:
+                            label = list_item.query_one(Label)
+                            label.update(display_name)
+                        except Exception:
+                            pass
         except Exception as e:
             log(f"  - Error updating album indicators: {e}")
 

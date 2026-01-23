@@ -12,6 +12,7 @@ from ttydal.tidal_client import TidalClient
 from ttydal.services import TracksService, TidalServiceError
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
+from ttydal.components.cover_art_item import CoverArtItem
 
 
 class TracksList(Container):
@@ -37,7 +38,7 @@ class TracksList(Container):
         border: solid $primary;
     }
 
-    TracksList Label {
+    TracksList > Label {
         background: $boost;
         width: 1fr;
         padding: 0 1;
@@ -45,6 +46,10 @@ class TracksList(Container):
 
     TracksList ListView {
         height: 1fr;
+    }
+
+    TracksList ListItem {
+        height: 3;
     }
     """
 
@@ -298,12 +303,14 @@ class TracksList(Container):
                 track_name = track["name"]
                 artist = track.get("artist", "Unknown")
                 duration = self._format_duration(track["duration"])
+                cover_url = track.get("cover_url")
 
                 # Get album name from track or use the current item name
                 album_name = track.get("album", item_name)
 
+                display_text = f"{idx}. {track_name} - {artist} ({duration})"
                 list_view.append(
-                    ListItem(Label(f"{idx}. {track_name} - {artist} ({duration})"))
+                    ListItem(CoverArtItem(display_text, cover_url=cover_url))
                 )
                 self.tracks.append(
                     {
@@ -312,6 +319,7 @@ class TracksList(Container):
                         "artist": artist,
                         "album": album_name,
                         "duration": track["duration"],
+                        "cover_url": cover_url,
                     }
                 )
 
@@ -372,10 +380,21 @@ class TracksList(Container):
                         if show_indicator and idx == self.current_playing_index
                         else "  "
                     )
-                    label = list_item.query_one(Label)
-                    label.update(
+                    display_text = (
                         f"{prefix}{idx + 1}. {track_name} - {artist} ({duration})"
                     )
+
+                    # Update the CoverArtItem text
+                    try:
+                        cover_art_item = list_item.query_one(CoverArtItem)
+                        cover_art_item.update_text(display_text)
+                    except Exception:
+                        # Fallback to Label for backwards compatibility
+                        try:
+                            label = list_item.query_one(Label)
+                            label.update(display_text)
+                        except Exception:
+                            pass
         except Exception as e:
             log(f"  - Error updating track indicators: {e}")
 

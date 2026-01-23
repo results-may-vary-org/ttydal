@@ -4,6 +4,10 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.widgets import Footer, TabbedContent, TabPane
 
+# Import textual_image.renderable before the app starts to determine best rendering method
+# This must be done before Textual starts its threads for input/output handling
+import textual_image.renderable  # noqa: F401
+
 from ttydal.pages.player_page import PlayerPage
 from ttydal.pages.config_page import ConfigPage
 from ttydal.tidal_client import TidalClient
@@ -46,6 +50,7 @@ class TtydalApp(App):
         Binding("space", "toggle_play", "Play/Pause", show=True),
         Binding("n", "toggle_auto_play", "Auto-Play", show=True),
         Binding("s", "toggle_shuffle", "Shuffle", show=True),
+        Binding("v", "toggle_vibrant_color", "Vibrant", show=True),
         Binding("shift+left", "seek_backward", "Seek -10s", show=True),
         Binding("shift+right", "seek_forward", "Seek +10s", show=True),
         Binding("P", "play_previous", "Previous", show=True),
@@ -306,6 +311,24 @@ class TtydalApp(App):
         # Show notification
         status = "enabled" if new_state else "disabled"
         self.notify(f"Shuffle {status}", severity="information")
+
+    def action_toggle_vibrant_color(self) -> None:
+        """Toggle vibrant color setting (colorize player bar with album color)."""
+        log("TtydalApp.action_toggle_vibrant_color() called")
+        current_state = self.config.vibrant_color
+        new_state = not current_state
+        self.config.vibrant_color = new_state
+        log(f"  - Vibrant color toggled: {current_state} -> {new_state}")
+
+        # Clear vibrant color from player bar if disabled
+        if self.current_page == "player" and not new_state:
+            player_page = self.query_one(PlayerPage)
+            player_bar = player_page.query_one(PlayerBar)
+            player_bar.update_vibrant_color(None)
+
+        # Show notification
+        status = "enabled" if new_state else "disabled"
+        self.notify(f"Vibrant color {status}", severity="information")
 
     def action_play_next(self) -> None:
         """Play next track."""
