@@ -51,6 +51,10 @@ class TracksList(Container):
     TracksList ListItem {
         height: 3;
     }
+
+    TracksList ListItem:odd {
+        background: $boost;
+    }
     """
 
     class TrackSelected(Message):
