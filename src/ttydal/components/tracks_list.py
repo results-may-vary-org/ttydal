@@ -469,6 +469,10 @@ class TracksList(Container):
 
             # Update visual indicators (in case we're reloading while a track is playing)
             self._update_track_indicators()
+
+            # Select first track (unfocused) so it's ready for navigation
+            if self.tracks:
+                list_view.index = 0
         except TidalServiceError as e:
             log(f"TracksList: Service error loading tracks: {e}")
             header = self.query_one(Label)

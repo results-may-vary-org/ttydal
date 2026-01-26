@@ -141,16 +141,20 @@ class PlayerPage(Container):
             log("=" * 80)
 
     def focus_albums(self) -> None:
-        """Focus the albums list."""
+        """Focus the albums list and select first album if none selected."""
         albums_list = self.query_one(AlbumsList)
         list_view = albums_list.query_one("#albums-listview")
         list_view.focus()
+        if list_view.index is None and albums_list.albums:
+            list_view.index = 0
 
     def focus_tracks(self) -> None:
-        """Focus the tracks list."""
+        """Focus the tracks list and select first track."""
         tracks_list = self.query_one(TracksList)
         list_view = tracks_list.query_one("#tracks-listview")
         list_view.focus()
+        if tracks_list.tracks and list_view.index is None:
+            list_view.index = 0
 
     def action_toggle_playback(self) -> None:
         """Toggle play/pause (spacebar action at PlayerPage level)."""

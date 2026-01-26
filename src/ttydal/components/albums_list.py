@@ -111,18 +111,19 @@ class AlbumsList(Container):
         self.run_worker(self._load_albums_async(), exclusive=True)
 
     def auto_select_my_tracks(self) -> None:
-        """Auto-select My Tracks on startup."""
+        """Auto-select My Tracks on startup and focus the list."""
         log("AlbumsList: Auto-selecting My Tracks")
         list_view = self.query_one("#albums-listview", ListView)
         if len(self.albums) > 0:
             list_view.index = 0
+            list_view.focus()
             # Trigger selection event
             self.post_message(
                 self.AlbumSelected(
                     self.albums[0]["id"], self.albums[0]["name"], self.albums[0]["type"]
                 )
             )
-            log("  - My Tracks auto-selected")
+            log("  - My Tracks auto-selected and focused")
 
     def _restore_selection(self) -> None:
         """Restore the previously selected album/playlist after refresh."""
