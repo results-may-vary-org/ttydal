@@ -74,6 +74,8 @@ class PlayerPage(Container):
         log(f"  - Track: {event.track_info.get('name', 'Unknown')}")
         log(f"  - Track ID: {event.track_id}")
         log(f"  - Artist: {event.track_info.get('artist', 'Unknown')}")
+        if event.prefetched_url:
+            log("  - Has pre-fetched URL: Yes")
 
         # Use PlaybackService to handle playback
         result = self.playback_service.play_track(
@@ -81,6 +83,9 @@ class PlayerPage(Container):
             event.track_info,
             self.config.quality,
             fetch_vibrant_color=self.config.vibrant_color,
+            prefetched_url=event.prefetched_url,
+            prefetched_metadata=event.prefetched_metadata,
+            prefetched_error_info=event.prefetched_error_info,
         )
 
         if result.success:

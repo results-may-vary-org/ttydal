@@ -15,6 +15,10 @@ from ttydal.logger import log
 from ttydal.components.cover_art_item import CoverArtItem
 
 
+# Pre-fetch next track URL this many seconds before current track ends
+PREFETCH_SECONDS_BEFORE_END = 15
+
+
 class TracksList(Container):
     """Tracks list widget for browsing and selecting tracks."""
 
@@ -51,21 +55,38 @@ class TracksList(Container):
     TracksList ListItem {
         height: 3;
     }
+
+    TracksList ListItem:odd {
+        background: $boost;
+    }
     """
 
     class TrackSelected(Message):
         """Message sent when a track is selected."""
 
-        def __init__(self, track_id: str, track_info: dict) -> None:
+        def __init__(
+            self,
+            track_id: str,
+            track_info: dict,
+            prefetched_url: str | None = None,
+            prefetched_metadata: dict | None = None,
+            prefetched_error_info: dict | None = None,
+        ) -> None:
             """Initialize track selected message.
 
             Args:
                 track_id: The selected track ID
                 track_info: Track metadata
+                prefetched_url: Pre-fetched stream URL (optional, skips API call)
+                prefetched_metadata: Pre-fetched stream metadata (optional)
+                prefetched_error_info: Pre-fetched error info dict (optional)
             """
             super().__init__()
             self.track_id = track_id
             self.track_info = track_info
+            self.prefetched_url = prefetched_url
+            self.prefetched_metadata = prefetched_metadata
+            self.prefetched_error_info = prefetched_error_info
 
     def __init__(self):
         """Initialize the tracks list."""
@@ -81,6 +102,12 @@ class TracksList(Container):
         # Shuffle state
         self.shuffled_indices: list[int] = []  # Shuffled order of track indices
         self.shuffle_position: int = 0  # Current position in the shuffled order
+        # Pre-fetch state for next track
+        self._prefetched_track_id: str | None = None
+        self._prefetched_url: str | None = None
+        self._prefetched_metadata: dict | None = None
+        self._prefetched_error_info: dict | None = None
+        self._prefetch_in_progress: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
@@ -89,14 +116,15 @@ class TracksList(Container):
 
     def on_mount(self) -> None:
         """Initialize when mounted."""
-        # Register callback for track end events
+        # Register callbacks for track end and time position events
         if not self._track_end_callback_registered:
             from ttydal.player import Player
 
             player = Player()
             player.register_callback("on_track_end", self._on_track_end)
+            player.register_callback("on_time_pos_change", self._on_time_pos_change)
             self._track_end_callback_registered = True
-            log("TracksList: Registered track end callback")
+            log("TracksList: Registered track end and time position callbacks")
 
     def _on_track_end(self) -> None:
         """Handle track end - play next track if auto-play is enabled."""
@@ -136,9 +164,112 @@ class TracksList(Container):
         except Exception as e:
             log(f"  - UI update error: {e}")
 
-        # Trigger playback
-        self.post_message(self.TrackSelected(next_track["id"], next_track))
+        # Check if we have pre-fetched data for this track
+        prefetched_url = None
+        prefetched_metadata = None
+        prefetched_error_info = None
+        if self._prefetched_track_id == next_track["id"]:
+            log("  - Using pre-fetched URL for next track")
+            prefetched_url = self._prefetched_url
+            prefetched_metadata = self._prefetched_metadata
+            prefetched_error_info = self._prefetched_error_info
+        else:
+            log("  - No pre-fetched data available (will fetch on demand)")
+
+        # Clear pre-fetch state
+        self._clear_prefetch_state()
+
+        # Trigger playback with pre-fetched data if available
+        self.post_message(
+            self.TrackSelected(
+                next_track["id"],
+                next_track,
+                prefetched_url=prefetched_url,
+                prefetched_metadata=prefetched_metadata,
+                prefetched_error_info=prefetched_error_info,
+            )
+        )
         log("=" * 80)
+
+    def _on_time_pos_change(self, time_pos: float) -> None:
+        """Handle playback time position changes for pre-fetching next track.
+
+        Args:
+            time_pos: Current playback position in seconds
+        """
+        # Skip if already pre-fetched or pre-fetch in progress
+        if self._prefetched_track_id is not None or self._prefetch_in_progress:
+            return
+
+        # Skip if no tracks or not playing
+        if self.current_playing_index is None or not self.tracks:
+            return
+
+        # Check if auto-play is enabled (no point pre-fetching if disabled)
+        from ttydal.config import ConfigManager
+
+        config = ConfigManager()
+        if not config.auto_play:
+            return
+
+        # Get track duration from player
+        from ttydal.player import Player
+
+        player = Player()
+        duration = player.get_duration()
+
+        # Skip if duration unknown or track too short
+        if duration <= 0 or duration < PREFETCH_SECONDS_BEFORE_END + 5:
+            return
+
+        # Check if we're within pre-fetch window
+        time_remaining = duration - time_pos
+        if time_remaining <= PREFETCH_SECONDS_BEFORE_END and time_remaining > 0:
+            # Start pre-fetching in background
+            self._prefetch_in_progress = True
+            log(f"TracksList: Starting pre-fetch ({time_remaining:.1f}s before track end)")
+            self.run_worker(self._prefetch_next_track(config.quality), exclusive=False)
+
+    async def _prefetch_next_track(self, quality: str) -> None:
+        """Pre-fetch the next track URL in the background.
+
+        Args:
+            quality: Quality setting for the track
+        """
+        try:
+            # Get next track index (respects shuffle mode)
+            next_index = self._get_next_track_index()
+            next_track = self.tracks[next_index]
+
+            log(f"TracksList: Pre-fetching URL for: {next_track['name']}")
+
+            # Fetch URL from Tidal
+            tidal_client = TidalClient()
+            track_url, stream_metadata, error_info = tidal_client.get_track_url(
+                next_track["id"], quality
+            )
+
+            if track_url:
+                # Store pre-fetched data
+                self._prefetched_track_id = next_track["id"]
+                self._prefetched_url = track_url
+                self._prefetched_metadata = stream_metadata
+                self._prefetched_error_info = error_info
+                log(f"TracksList: Pre-fetch successful for: {next_track['name']}")
+            else:
+                log(f"TracksList: Pre-fetch failed for: {next_track['name']}")
+        except Exception as e:
+            log(f"TracksList: Pre-fetch error: {e}")
+        finally:
+            self._prefetch_in_progress = False
+
+    def _clear_prefetch_state(self) -> None:
+        """Clear the pre-fetch state."""
+        self._prefetched_track_id = None
+        self._prefetched_url = None
+        self._prefetched_metadata = None
+        self._prefetched_error_info = None
+        self._prefetch_in_progress = False
 
     def _generate_shuffle_order(self) -> None:
         """Generate a new random shuffle order for tracks."""
