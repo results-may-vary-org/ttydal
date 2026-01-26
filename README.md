@@ -59,6 +59,11 @@ uv tool install ttydal
 pip install ttydal
 ```
 
+Then use it:
+```bash
+ttydal
+```
+
 ### For development
 
 1. Clone the repository:
