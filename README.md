@@ -50,13 +50,13 @@ https://github.com/user-attachments/assets/ea975bea-b8f6-4d1a-a309-ec2d54390c3a
 
 ```bash
 # pipx (recommend)
-pipx install sqlit-tui
+pipx install ttydal
 
 # uv
-uv tool install sqlit-tui
+uv tool install ttydal
 
 # pip
-pip install sqlit-tui
+pip install ttydal
 ```
 
 ### For development
