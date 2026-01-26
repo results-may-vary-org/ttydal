@@ -11,3 +11,4 @@ wheels/
 
 # textual exemple
 textual/
+.beads/

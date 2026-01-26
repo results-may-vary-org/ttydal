@@ -39,6 +39,9 @@ class PlaybackService:
         track_info: dict[str, Any],
         quality: str = "high",
         fetch_vibrant_color: bool = False,
+        prefetched_url: str | None = None,
+        prefetched_metadata: dict | None = None,
+        prefetched_error_info: dict | None = None,
     ) -> PlaybackResult:
         """Play a track by ID with quality setting.
 
@@ -47,6 +50,9 @@ class PlaybackService:
             track_info: Track metadata dictionary (name, artist, etc.)
             quality: Quality setting ('max', 'high', or 'low')
             fetch_vibrant_color: Whether to include the album's vibrant color
+            prefetched_url: Pre-fetched stream URL (skips API call if provided)
+            prefetched_metadata: Pre-fetched stream metadata
+            prefetched_error_info: Pre-fetched error info dict
 
         Returns:
             PlaybackResult with success status and metadata
@@ -58,11 +64,17 @@ class PlaybackService:
         log(f"  - Artist: {track_info.get('artist', 'Unknown')}")
         log(f"  - Requested quality: {quality}")
 
-        # Get track URL and metadata from Tidal
-        log("  - Requesting track URL and metadata from Tidal...")
-        track_url, stream_metadata, error_info = self.tidal.get_track_url(
-            track_id, quality
-        )
+        # Use pre-fetched data if available, otherwise fetch from Tidal
+        if prefetched_url and prefetched_metadata:
+            log("  - Using pre-fetched URL (skipping API call)")
+            track_url = prefetched_url
+            stream_metadata = prefetched_metadata
+            error_info = prefetched_error_info or {}
+        else:
+            log("  - Requesting track URL and metadata from Tidal...")
+            track_url, stream_metadata, error_info = self.tidal.get_track_url(
+                track_id, quality
+            )
 
         if track_url and stream_metadata:
             log("  - Got track URL, calling player.play()")

@@ -1,11 +1,58 @@
 """Tidal API client singleton wrapper for ttydal."""
 
+import time
+from functools import wraps
+from typing import Callable, TypeVar
+from requests.exceptions import ConnectionError, ChunkedEncodingError
+
 import tidalapi
 from tidalapi.session import Session
 
 from ttydal.api_logger import install_api_logger
 from ttydal.credentials import CredentialManager
 from ttydal.logger import log
+
+T = TypeVar("T")
+
+
+def retry_on_connection_error(
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    backoff_factor: float = 2.0,
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """Decorator to retry function calls on connection errors.
+
+    Args:
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay between retries in seconds
+        backoff_factor: Multiplier for delay after each retry
+
+    Returns:
+        Decorated function with retry logic
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        @wraps(func)
+        def wrapper(*args, **kwargs) -> T:
+            last_exception = None
+            delay = base_delay
+
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except (ConnectionError, ChunkedEncodingError, OSError) as e:
+                    last_exception = e
+                    if attempt < max_retries:
+                        log(f"  - Connection error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                        log(f"  - Retrying in {delay:.1f}s...")
+                        time.sleep(delay)
+                        delay *= backoff_factor
+                    else:
+                        log(f"  - Connection error (final attempt): {e}")
+
+            raise last_exception
+
+        return wrapper
+    return decorator
 
 
 class TidalClient:
@@ -100,6 +147,7 @@ class TidalClient:
         log("  - No credentials found, returning False")
         return False
 
+    @retry_on_connection_error(max_retries=2, base_delay=0.5)
     def get_user_albums(self) -> list:
         """Get user's favorite albums.
 
@@ -132,6 +180,7 @@ class TidalClient:
             log("=" * 60)
             return []
 
+    @retry_on_connection_error(max_retries=2, base_delay=0.5)
     def get_user_playlists(self) -> list:
         """Get user's playlists.
 
@@ -164,6 +213,7 @@ class TidalClient:
             log("=" * 60)
             return []
 
+    @retry_on_connection_error(max_retries=2, base_delay=0.5)
     def get_user_favorites(self) -> list:
         """Get user's favorite tracks using two-step API call with dynamic limit.
 
@@ -234,6 +284,7 @@ class TidalClient:
             log("=" * 60)
             return []
 
+    @retry_on_connection_error(max_retries=2, base_delay=0.5)
     def get_album_tracks(self, album_id: str) -> list:
         """Get ALL tracks from an album.
 
@@ -274,6 +325,7 @@ class TidalClient:
             log("=" * 60)
             return []
 
+    @retry_on_connection_error(max_retries=2, base_delay=0.5)
     def get_playlist_tracks(self, playlist_id: str) -> list:
         """Get ALL tracks from a playlist.
 
@@ -314,6 +366,7 @@ class TidalClient:
             log("=" * 60)
             return []
 
+    @retry_on_connection_error(max_retries=3, base_delay=0.5)
     def get_track_url(
         self, track_id: str, quality: str = "high"
     ) -> tuple[str | None, dict | None, dict]:
