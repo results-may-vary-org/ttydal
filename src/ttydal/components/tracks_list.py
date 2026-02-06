@@ -470,9 +470,9 @@ class TracksList(Container):
             # Update visual indicators (in case we're reloading while a track is playing)
             self._update_track_indicators()
 
-            # Select first track (unfocused) so it's ready for navigation
+            # Select first track after a small delay to ensure DOM is settled
             if self.tracks:
-                list_view.index = 0
+                self.set_timer(0.1, self._select_first_track)
         except TidalServiceError as e:
             log(f"TracksList: Service error loading tracks: {e}")
             header = self.query_one(Label)
@@ -494,6 +494,16 @@ class TracksList(Container):
         minutes = seconds // 60
         secs = seconds % 60
         return f"{minutes}:{secs:02d}"
+
+    def _select_first_track(self) -> None:
+        """Select the first track (unfocused) for immediate keyboard navigation."""
+        try:
+            list_view = self.query_one("#tracks-listview", ListView)
+            if self.tracks and len(list_view.children) > 0:
+                list_view.index = 0
+                log("TracksList: Selected first track (unfocused)")
+        except Exception as e:
+            log(f"TracksList: Failed to select first track: {e}")
 
     def _update_track_indicators(self) -> None:
         """Update track list to show '>' indicator for currently playing track."""
