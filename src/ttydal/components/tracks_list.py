@@ -518,11 +518,13 @@ class TracksList(Container):
                 and self.current_playing_index is not None
                 and self.current_playing_index < len(self.tracks)
             ):
-                list_view.index = self.current_playing_index
-                log(f"TracksList: Selected playing track at index {self.current_playing_index}")
+                target = self.current_playing_index
+                log(f"TracksList: Selected playing track at index {target}")
             else:
-                list_view.index = 0
+                target = 0
                 log("TracksList: Selected first track")
+
+            list_view.index = target
         except Exception as e:
             log(f"TracksList: Failed to select initial track: {e}")
 
