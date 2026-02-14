@@ -3,15 +3,17 @@
 This module provides functionality to download and cache cover art images
 from URLs for display in the terminal using textual-image.
 
-Cache is stored in ~/.cache/ttydal/images/ for persistence across sessions.
+Cache is stored in a platform-appropriate directory for persistence across sessions.
 Images are only loaded when they become visible in the UI (lazy loading).
 """
 
 import asyncio
 from io import BytesIO
+import os
 from pathlib import Path
 from typing import Optional
 import hashlib
+import platform
 import requests
 from PIL import Image as PILImage
 
@@ -24,7 +26,10 @@ class ImageCache:
     Downloads images from URLs and caches them locally for efficient reuse.
     Uses PIL to load images which can then be passed to textual-image widgets.
 
-    Cache location: ~/.cache/ttydal/images/
+    Cache locations:
+    - Linux: ~/.cache/ttydal/images/
+    - macOS: ~/Library/Caches/ttydal/images/
+    - Windows: %LOCALAPPDATA%/ttydal/images/
     """
 
     _instance = None
@@ -43,8 +48,17 @@ class ImageCache:
         if self._initialized:
             return
 
-        # Use ~/.cache/ttydal/images/ for persistent cache
-        self._cache_dir = Path.home() / ".cache" / "ttydal" / "images"
+        # Use platform-appropriate cache directory
+        system = platform.system()
+        if system == "Darwin":
+            self._cache_dir = Path.home() / "Library" / "Caches" / "ttydal" / "images"
+        elif system == "Windows":
+            local_app_data = Path(
+                os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
+            )
+            self._cache_dir = local_app_data / "ttydal" / "images"
+        else:
+            self._cache_dir = Path.home() / ".cache" / "ttydal" / "images"
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache = {}
         self._initialized = True
@@ -164,4 +178,5 @@ class ImageCache:
             "size_bytes": size_bytes,
             "size_mb": round(size_bytes / (1024 * 1024), 2),
             "memory_count": len(self._memory_cache),
+            "cache_dir": str(self._cache_dir),
         }

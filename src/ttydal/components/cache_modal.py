@@ -68,6 +68,11 @@ class CacheModal(ModalScreen):
         color: $text-muted;
     }
 
+    #cache-container Static.cache-path {
+        text-align: center;
+        color: $text-muted;
+    }
+
     /* Theme-aware colors for visual bar icons */
     .icon-complete {
         color: $success;
@@ -161,14 +166,13 @@ class CacheModal(ModalScreen):
         image_stats = image_cache.get_stats()
         image_count = image_stats["count"]
         image_size_mb = image_stats["size_mb"]
+        image_cache_dir = image_stats["cache_dir"]
 
         icon = "\u26c1"  # ⛁
         icon_states = self._get_icon_states(tracks_count, max_tracks)
         album_label = "albums" if albums_count > 1 else "album"
         track_label = "tracks" if tracks_count > 1 else "track"
-        tracks_display = (
-            f"{self._format_count(tracks_count)}/{self._format_count(max_tracks)} {track_label} over {albums_count} {album_label}"
-        )
+        tracks_display = f"{self._format_count(tracks_count)}/{self._format_count(max_tracks)} {track_label} over {albums_count} {album_label}"
 
         ttl_label = "hour" if ttl_hours == 1 else "hours"
 
@@ -177,7 +181,9 @@ class CacheModal(ModalScreen):
             yield Rule()
 
             # Tracks cache section
-            yield Label(f"Tracks Cache (ttl {ttl_hours} {ttl_label})", classes="section-title")
+            yield Label(
+                f"Tracks Cache (ttl {ttl_hours} {ttl_label})", classes="section-title"
+            )
             with Horizontal(id="visual-bar-container"):
                 for state in icon_states:
                     yield Static(icon, classes=state)
@@ -190,6 +196,7 @@ class CacheModal(ModalScreen):
                 f"Images: {image_count}  |  Size: {self._format_size(image_size_mb)}",
                 classes="stat-label",
             )
+            yield Static(image_cache_dir, classes="cache-path")
             yield Rule()
 
             yield Label("Press ESC to close", classes="hint")
