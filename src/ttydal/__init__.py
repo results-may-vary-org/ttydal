@@ -8,9 +8,9 @@ from ttydal.app import TtydalApp
 
 def main() -> None:
     """Launch the ttydal TUI application."""
-    log("="*80)
+    log("=" * 80)
     log("Starting ttydal application")
-    log("="*80)
+    log("=" * 80)
 
     app = None
     try:
@@ -37,11 +37,10 @@ def main() -> None:
         if app is not None:
             try:
                 # Ensure player is shutdown
-                if hasattr(app, 'player'):
+                if hasattr(app, "player"):
                     log("  - Final player shutdown check...")
                     app.player.shutdown()
             except Exception as e:
                 log(f"  - Error during final cleanup: {e}")
         log("Application exited")
-        log("="*80)
-
+        log("=" * 80)

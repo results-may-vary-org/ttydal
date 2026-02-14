@@ -7,7 +7,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, Rule, Static
 
 from ttydal.services.tracks_cache import TracksCache
-from ttydal.image_cache import ImageCache
+from ttydal.services.image_cache import ImageCache
 
 
 class CacheModal(ModalScreen):

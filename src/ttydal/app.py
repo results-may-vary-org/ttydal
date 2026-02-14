@@ -10,8 +10,8 @@ import textual_image.renderable  # noqa: F401
 
 from ttydal.pages.player_page import PlayerPage
 from ttydal.pages.config_page import ConfigPage
-from ttydal.tidal_client import TidalClient
-from ttydal.player import Player
+from ttydal.services.tidal_client import TidalClient
+from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.components.player_bar import PlayerBar
 from ttydal.components.login_modal import LoginModal
 from ttydal.components.search_modal import SearchModal
@@ -69,7 +69,7 @@ class TtydalApp(App):
         log("  - TidalClient created")
 
         log("  - Creating Player...")
-        self.player = Player()
+        self.player = MpvPlaybackEngine()
         log("  - Player created")
 
         log("  - Creating ConfigManager...")

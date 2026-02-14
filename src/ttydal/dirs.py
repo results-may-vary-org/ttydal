@@ -12,8 +12,10 @@ from pathlib import Path
 
 _APP_NAME = "ttydal"
 
+
 def _system() -> str:
     return platform.system()
+
 
 def config_dir() -> Path:
     """Return the platform-conventional config directory."""
@@ -27,6 +29,7 @@ def config_dir() -> Path:
         )
     return Path.home() / ".config" / _APP_NAME
 
+
 def cache_dir() -> Path:
     """Return the platform-conventional cache directory."""
     system = _system()
@@ -39,9 +42,11 @@ def cache_dir() -> Path:
         )
     return Path.home() / ".cache" / _APP_NAME
 
+
 def log_dir() -> Path:
     """Return the directory for log files (same as config dir)."""
     return config_dir()
+
 
 def image_cache_dir() -> Path:
     """Return the directory for cached cover art images."""

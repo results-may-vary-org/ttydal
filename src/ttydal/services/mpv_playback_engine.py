@@ -1,10 +1,11 @@
-"""MPV player singleton wrapper for ttydal."""
+"""MPV playback engine singleton wrapper for ttydal."""
 
 from typing import Callable
 
 import mpv
 from ttydal.logger import log
 from enum import IntEnum
+
 
 # map from mvp.EndFileReason
 class EndFileReason(IntEnum):
@@ -15,8 +16,9 @@ class EndFileReason(IntEnum):
     ERROR = mpv.MpvEventEndFile.ERROR
     REDIRECT = mpv.MpvEventEndFile.REDIRECT
 
-class Player:
-    """Singleton MPV player wrapper."""
+
+class MpvPlaybackEngine:
+    """Singleton MPV playback engine."""
 
     _instance = None
 
@@ -32,16 +34,16 @@ class Player:
         if self._initialized:
             return
 
-        log("Player.__init__() called")
+        log("MpvPlaybackEngine.__init__() called")
         log("  - MPV will be lazy-loaded on first use")
         self.mpv = None
         self._current_track = None
         self._callbacks: dict[str, list[Callable]] = {
             "on_track_end": [],
-            "on_time_pos_change": []
+            "on_time_pos_change": [],
         }
         self._initialized = True
-        log("Player.__init__() completed")
+        log("MpvPlaybackEngine.__init__() completed")
 
     def _ensure_mpv(self) -> None:
         """Ensure MPV is initialized (lazy loading)."""
@@ -53,14 +55,14 @@ class Player:
         log("  - MPV initialized successfully")
 
         # Register MPV property observers
-        @self.mpv.property_observer('time-pos')
+        @self.mpv.property_observer("time-pos")
         def time_observer(_name, value):
             """Observe playback time position."""
             if value is not None:
                 for callback in self._callbacks["on_time_pos_change"]:
                     callback(value)
 
-        @self.mpv.event_callback('end-file')
+        @self.mpv.event_callback("end-file")
         def end_file_callback(event: mpv.MpvEvent):
             """Handle track end event - only trigger auto-play if track finished naturally."""
             log("=" * 80)
@@ -74,7 +76,9 @@ class Player:
 
             reason = EndFileReason(data.reason)
             log(f"  - Reason: {reason.name}")
-            log(f"  - Track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
+            log(
+                f"  - Track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}"
+            )
 
             if reason is EndFileReason.EOF:
                 log("  - Track finished naturally (EOF) → calling auto-play callbacks")
@@ -93,9 +97,11 @@ class Player:
             track_info: Optional track metadata
         """
         log("=" * 80)
-        log("Player.play() called")
+        log("MpvPlaybackEngine.play() called")
         if track_info:
-            log(f"  - Track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}")
+            log(
+                f"  - Track: {track_info.get('name', 'Unknown')} by {track_info.get('artist', 'Unknown')}"
+            )
             log(f"  - Track ID: {track_info.get('id', 'Unknown')}")
         log(f"  - URL: {url[:50]}..." if len(url) > 50 else f"  - URL: {url}")
 
@@ -111,12 +117,13 @@ class Player:
         except Exception as e:
             log(f"  - ERROR: {e}")
             import traceback
+
             log(traceback.format_exc())
             log("=" * 80)
 
     def pause(self) -> None:
         """Pause playback."""
-        log("Player.pause() called")
+        log("MpvPlaybackEngine.pause() called")
         if self.mpv is None:
             log("  - MPV not initialized")
             return
@@ -125,7 +132,7 @@ class Player:
 
     def resume(self) -> None:
         """Resume playback."""
-        log("Player.resume() called")
+        log("MpvPlaybackEngine.resume() called")
         if self.mpv is None:
             log("  - MPV not initialized")
             return
@@ -135,8 +142,10 @@ class Player:
     def toggle_pause(self) -> None:
         """Toggle pause/play."""
         log("=" * 80)
-        log("Player.toggle_pause() called")
-        log(f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}")
+        log("MpvPlaybackEngine.toggle_pause() called")
+        log(
+            f"  - Current track: {self._current_track.get('name', 'Unknown') if self._current_track else 'None'}"
+        )
 
         # Only toggle if MPV is initialized (meaning a track has been loaded)
         if self.mpv is None:
@@ -173,7 +182,7 @@ class Player:
         if self.mpv is None:
             return
         try:
-            self.mpv.seek(seconds, reference='relative')
+            self.mpv.seek(seconds, reference="relative")
         except Exception:
             pass  # Ignore seek errors
 
@@ -227,7 +236,7 @@ class Player:
 
     def shutdown(self) -> None:
         """Shutdown the player."""
-        log("Player.shutdown() called")
+        log("MpvPlaybackEngine.shutdown() called")
         if self.mpv is None:
             log("  - MPV was never initialized, nothing to shutdown")
             return

@@ -138,17 +138,13 @@ class ConfigPage(Container):
         # Valid theme options - extract just the theme IDs
         valid_theme_ids = [theme_id for _, theme_id in self.AVAILABLE_THEMES]
         theme_value = (
-            self.config.theme
-            if self.config.theme in valid_theme_ids
-            else "rose-pine"
+            self.config.theme if self.config.theme in valid_theme_ids else "rose-pine"
         )
 
         # Valid quality options
         valid_qualities = ["max", "high", "low"]
         quality_value = (
-            self.config.quality
-            if self.config.quality in valid_qualities
-            else "high"
+            self.config.quality if self.config.quality in valid_qualities else "high"
         )
 
         with VerticalScroll():

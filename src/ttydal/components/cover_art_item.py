@@ -9,7 +9,7 @@ from textual.containers import Horizontal
 from textual.widgets import Label, Static
 from textual_image.widget import Image
 
-from ttydal.image_cache import ImageCache
+from ttydal.services.image_cache import ImageCache
 from ttydal.logger import log
 
 

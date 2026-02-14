@@ -30,6 +30,7 @@ def retry_on_connection_error(
     Returns:
         Decorated function with retry logic
     """
+
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
@@ -42,7 +43,9 @@ def retry_on_connection_error(
                 except (ConnectionError, ChunkedEncodingError, OSError) as e:
                     last_exception = e
                     if attempt < max_retries:
-                        log(f"  - Connection error (attempt {attempt + 1}/{max_retries + 1}): {e}")
+                        log(
+                            f"  - Connection error (attempt {attempt + 1}/{max_retries + 1}): {e}"
+                        )
                         log(f"  - Retrying in {delay:.1f}s...")
                         time.sleep(delay)
                         delay *= backoff_factor
@@ -52,6 +55,7 @@ def retry_on_connection_error(
             raise last_exception
 
         return wrapper
+
     return decorator
 
 

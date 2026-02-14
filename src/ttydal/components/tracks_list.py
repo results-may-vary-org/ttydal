@@ -8,7 +8,7 @@ from textual.containers import Container
 from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
-from ttydal.tidal_client import TidalClient
+from ttydal.services.tidal_client import TidalClient
 from ttydal.services import TracksService, TidalServiceError
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
@@ -118,9 +118,9 @@ class TracksList(Container):
         """Initialize when mounted."""
         # Register callbacks for track end and time position events
         if not self._track_end_callback_registered:
-            from ttydal.player import Player
+            from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 
-            player = Player()
+            player = MpvPlaybackEngine()
             player.register_callback("on_track_end", self._on_track_end)
             player.register_callback("on_time_pos_change", self._on_time_pos_change)
             self._track_end_callback_registered = True
@@ -213,9 +213,9 @@ class TracksList(Container):
             return
 
         # Get track duration from player
-        from ttydal.player import Player
+        from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 
-        player = Player()
+        player = MpvPlaybackEngine()
         duration = player.get_duration()
 
         # Skip if duration unknown or track too short
@@ -227,7 +227,9 @@ class TracksList(Container):
         if time_remaining <= PREFETCH_SECONDS_BEFORE_END and time_remaining > 0:
             # Start pre-fetching in background
             self._prefetch_in_progress = True
-            log(f"TracksList: Starting pre-fetch ({time_remaining:.1f}s before track end)")
+            log(
+                f"TracksList: Starting pre-fetch ({time_remaining:.1f}s before track end)"
+            )
             self.run_worker(self._prefetch_next_track(config.quality), exclusive=False)
 
     async def _prefetch_next_track(self, quality: str) -> None:
@@ -540,7 +542,9 @@ class TracksList(Container):
                     track_name = track["name"]
                     artist = track["artist"]
                     duration = self._format_duration(track["duration"])
-                    track_number = track.get("index", idx + 1)  # Use stored index or fallback
+                    track_number = track.get(
+                        "index", idx + 1
+                    )  # Use stored index or fallback
 
                     # Add ">" prefix if this is the currently playing track
                     # AND we're viewing the album that contains the playing track
@@ -587,9 +591,9 @@ class TracksList(Container):
         if index is None or index >= len(self.tracks):
             log("  - No track selected, toggling pause/play")
             # No track selected, toggle pause on whatever is playing
-            from ttydal.player import Player
+            from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 
-            player = Player()
+            player = MpvPlaybackEngine()
             player.toggle_pause()
             log("=" * 80)
             return
@@ -600,9 +604,9 @@ class TracksList(Container):
         )
 
         # Get currently playing track
-        from ttydal.player import Player
+        from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 
-        player = Player()
+        player = MpvPlaybackEngine()
         current_track = player.get_current_track()
         log(
             f"  - Current playing track: {current_track.get('name', 'Unknown') if current_track else 'None'}"

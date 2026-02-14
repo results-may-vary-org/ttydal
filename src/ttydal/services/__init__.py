@@ -32,7 +32,10 @@ import asyncio
 
 from ttydal.exceptions import TidalServiceError, DataFetchError
 from ttydal.logger import log
+from ttydal.services.image_cache import ImageCache
+from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.services.playback_service import PlaybackService, PlaybackResult
+from ttydal.services.tidal_client import TidalClient
 from ttydal.services.tracks_cache import TracksCache
 
 
@@ -252,4 +255,7 @@ __all__ = [
     "DataFetchError",
     "AlbumDict",
     "TrackDict",
+    "MpvPlaybackEngine",
+    "TidalClient",
+    "ImageCache",
 ]
