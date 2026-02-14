@@ -29,9 +29,10 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Multiple theme options for interface customization
 - Fully keyboard-driven interface
 - Settings auto-save on change
-- `new` Cover art display in albums list, tracks list, and player bar
-- `new` Image caching for cover art (stored in `~/.cache/ttydal/images/`)
-- `new` Vibrant color mode - colorize player bar text with album's vibrant color
+- Cover art display in albums list, tracks list, and player bar
+- Image caching for cover art
+- Vibrant color mode - colorize player bar text with album's vibrant color
+- `new` Cache and config file are now stored in conventional directories for each platform
 
 *warning: this video contain audio of music, mind your volume*
 
@@ -167,14 +168,23 @@ All settings are accessible via the Config page (press `c`).
 - **Audio Quality**: select default quality for your playback (max, high, or low)
 - **Auto-Play**: enable or disable automatic playback of next track
 - **Shuffle**: enable or disable shuffle mode
-- **Debug Logging**: enable or disable debug logging to `~/.ttydal/debug.log`
-- **API Logging**: *these logs can contains sensitive data* enable or disable API request/response logging to `~/.ttydal/debug-api.log`
+- **Debug Logging**: enable or disable debug logging (`debug.log` in config directory)
+- **API Logging**: *these logs can contains sensitive data* enable or disable API request/response logging (`debug-api.log` in config directory)
 
 All settings are automatically saved when changed.
 
+## Data directories
+
+ttydal follows platform conventions for config and cache directories:
+
+| Type | Linux | MacOS | Windows |
+|---|---|---|---|
+| Config & logs | `~/.config/ttydal` | `~/Library/Application Support/ttydal` | `%APPDATA%/ttydal` |
+| Image cache | `~/.cache/ttydal/images` | `~/Library/Caches/ttydal/images` | `%LOCALAPPDATA%/ttydal/images` |
+
 ## Images cache
 
-Loaded images are cached into `~/.cache/ttydal`.
+Loaded images are cached in the platform cache directory (see above).
 
 ## Tracks cache
 

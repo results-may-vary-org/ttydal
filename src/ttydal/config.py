@@ -1,11 +1,12 @@
 """Configuration manager for ttydal.
 
-Manages application configuration stored in ~/.ttydal/config.json
+Manages application configuration stored in the platform config directory.
 """
 
 import json
-from pathlib import Path
 from typing import Any
+
+from ttydal.dirs import config_dir
 
 
 class ConfigManager:
@@ -25,7 +26,7 @@ class ConfigManager:
         if self._initialized:
             return
 
-        self.config_dir = Path.home() / ".ttydal"
+        self.config_dir = config_dir()
         self.config_file = self.config_dir / "config.json"
         self._config: dict[str, Any] = {}
         self._load_config()
@@ -44,8 +45,8 @@ class ConfigManager:
                 "theme": "rose-pine",
                 "quality": "high",  # high or low
                 "auto_play": True,  # auto-play next track when current finishes
-                "debug_logging_enabled": False,  # enable debug logging to ~/.ttydal/debug.log
-                "api_logging_enabled": False,  # enable API request/response logging to ~/.ttydal/debug-api.log
+                "debug_logging_enabled": False,  # enable debug logging
+                "api_logging_enabled": False,  # enable API request/response logging
             }
             self._save_config()
 

@@ -2,8 +2,9 @@
 
 import sys
 from datetime import datetime
-from pathlib import Path
 from typing import Any
+
+from ttydal.dirs import log_dir
 
 
 class DebugLogger:
@@ -28,7 +29,7 @@ class DebugLogger:
         if self._initialized:
             return
 
-        self.log_dir = Path.home() / ".ttydal"
+        self.log_dir = log_dir()
         self.log_file = self.log_dir / "debug.log"
         self._file_setup_done = False
         self._initialized = True
@@ -66,7 +67,7 @@ class DebugLogger:
 """
 
         # Write session start marker
-        with open(self.log_file, "a") as f:
+        with open(self.log_file, "a", encoding="utf-8") as f:
             f.write(f"\n{'=' * 80}\n")
             f.write(ascii_art)
             f.write(f"Session started at {datetime.now().isoformat()}\n")
@@ -94,7 +95,7 @@ class DebugLogger:
 
         # Write to file
         try:
-            with open(self.log_file, "a") as f:
+            with open(self.log_file, "a", encoding="utf-8") as f:
                 f.write(log_line)
         except Exception as e:
             print(f"Failed to write to log: {e}", file=sys.stderr)

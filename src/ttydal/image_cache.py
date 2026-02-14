@@ -9,14 +9,13 @@ Images are only loaded when they become visible in the UI (lazy loading).
 
 import asyncio
 from io import BytesIO
-import os
 from pathlib import Path
 from typing import Optional
 import hashlib
-import platform
 import requests
 from PIL import Image as PILImage
 
+from ttydal.dirs import image_cache_dir
 from ttydal.logger import log
 
 
@@ -48,17 +47,7 @@ class ImageCache:
         if self._initialized:
             return
 
-        # Use platform-appropriate cache directory
-        system = platform.system()
-        if system == "Darwin":
-            self._cache_dir = Path.home() / "Library" / "Caches" / "ttydal" / "images"
-        elif system == "Windows":
-            local_app_data = Path(
-                os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local")
-            )
-            self._cache_dir = local_app_data / "ttydal" / "images"
-        else:
-            self._cache_dir = Path.home() / ".cache" / "ttydal" / "images"
+        self._cache_dir = image_cache_dir()
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache = {}
         self._initialized = True

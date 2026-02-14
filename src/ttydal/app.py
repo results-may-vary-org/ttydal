@@ -583,9 +583,9 @@ class TtydalApp(App):
         """
         log("Clear logs requested from config page")
         try:
-            from pathlib import Path
+            from ttydal.dirs import log_dir
 
-            log_file = Path.home() / ".ttydal" / "debug.log"
+            log_file = log_dir() / "debug.log"
 
             if log_file.exists():
                 # Clear the log file by truncating it
