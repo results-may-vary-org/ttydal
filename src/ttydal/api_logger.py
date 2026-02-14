@@ -6,8 +6,9 @@ them to a dedicated debug-api.log file with full details.
 
 import json
 from datetime import datetime
-from pathlib import Path
 from typing import Any
+
+from ttydal.dirs import log_dir
 
 
 class APILogger:
@@ -28,7 +29,7 @@ class APILogger:
         if self._initialized:
             return
 
-        self.log_dir = Path.home() / ".ttydal"
+        self.log_dir = log_dir()
         self.log_file = self.log_dir / "debug-api.log"
         self._file_setup_done = False
         self._initialized = True

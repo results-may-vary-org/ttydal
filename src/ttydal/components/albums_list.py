@@ -135,6 +135,8 @@ class AlbumsList(Container):
         # Find the index of the saved selection
         for idx, album in enumerate(self.albums):
             if album["id"] == self._saved_selection_id:
+                # reset index to force highlight to be rebuild on the ui
+                list_view.index = None
                 list_view.index = idx
                 log(f"  - Selection restored to index {idx}")
                 return

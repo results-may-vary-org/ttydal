@@ -3,7 +3,7 @@
 This module provides functionality to download and cache cover art images
 from URLs for display in the terminal using textual-image.
 
-Cache is stored in ~/.cache/ttydal/images/ for persistence across sessions.
+Cache is stored in a platform-appropriate directory for persistence across sessions.
 Images are only loaded when they become visible in the UI (lazy loading).
 """
 
@@ -15,6 +15,7 @@ import hashlib
 import requests
 from PIL import Image as PILImage
 
+from ttydal.dirs import image_cache_dir
 from ttydal.logger import log
 
 
@@ -24,7 +25,10 @@ class ImageCache:
     Downloads images from URLs and caches them locally for efficient reuse.
     Uses PIL to load images which can then be passed to textual-image widgets.
 
-    Cache location: ~/.cache/ttydal/images/
+    Cache locations:
+    - Linux: ~/.cache/ttydal/images/
+    - macOS: ~/Library/Caches/ttydal/images/
+    - Windows: %LOCALAPPDATA%/ttydal/images/
     """
 
     _instance = None
@@ -43,8 +47,7 @@ class ImageCache:
         if self._initialized:
             return
 
-        # Use ~/.cache/ttydal/images/ for persistent cache
-        self._cache_dir = Path.home() / ".cache" / "ttydal" / "images"
+        self._cache_dir = image_cache_dir()
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         self._memory_cache = {}
         self._initialized = True
@@ -164,4 +167,5 @@ class ImageCache:
             "size_bytes": size_bytes,
             "size_mb": round(size_bytes / (1024 * 1024), 2),
             "memory_count": len(self._memory_cache),
+            "cache_dir": str(self._cache_dir),
         }
