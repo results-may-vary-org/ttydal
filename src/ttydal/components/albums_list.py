@@ -12,7 +12,7 @@ from textual.containers import Container
 from textual.widgets import ListItem, ListView, Label
 from textual.message import Message
 
-from ttydal.tidal_client import TidalClient
+from ttydal.services.tidal_client import TidalClient
 from ttydal.services import AlbumsService, TracksService, TidalServiceError
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log

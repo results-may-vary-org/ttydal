@@ -7,9 +7,9 @@ from textual.containers import Center, Container, Horizontal, Middle
 from textual.widgets import Label, ProgressBar, Static
 from textual_image.widget import Image
 
-from ttydal.player import Player
+from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.config import ConfigManager
-from ttydal.image_cache import ImageCache
+from ttydal.services.image_cache import ImageCache
 from ttydal.logger import log
 
 
@@ -61,7 +61,7 @@ class PlayerBar(Container):
     def __init__(self):
         """Initialize the player bar."""
         super().__init__()
-        self.player = Player()
+        self.player = MpvPlaybackEngine()
         self.config = ConfigManager()
         self.quality = "N/A"
         self.stream_metadata = None
