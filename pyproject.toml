@@ -1,11 +1,12 @@
 [project]
 name = "ttydal"
-version = "1.2.0"
+version = "1.3.0"
 description = "Tidal in your terminal!"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 authors = [
-    { name = "Bouteiller [a2n] Alan", email = "a2n.dev@pm.me" }
+    { name = "Bouteiller [a2n] Alan", email = "a2n.dev@pm.me" },
+    { name = "robertoash" }
 ]
 requires-python = ">=3.13"
 dependencies = [
