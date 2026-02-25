@@ -12,6 +12,7 @@ from ttydal.config import ConfigManager
 from ttydal.services.image_cache import ImageCache
 from ttydal.logger import log
 
+UPDATE_DELAY = 0.05  # Delay in seconds
 
 class PlayerBar(Container):
     """Player bar widget displaying current track and progress."""
@@ -49,6 +50,7 @@ class PlayerBar(Container):
         height: 5;
         content-align: center middle;
         color: $text-muted;
+            time.sleep(UPDATE_DELAY)
         hatch: cross $primary 30%;
     }
 
