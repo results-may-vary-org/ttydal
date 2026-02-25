@@ -11,16 +11,19 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Label, Static
 
 from ttydal.logger import log
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("login_modal", action)
 
 
 class LoginModal(ModalScreen):
     """Modal screen for Tidal OAuth login."""
 
     BINDINGS = [
-        Binding("o", "open_url", "Open URL", show=True),
-        Binding("c", "copy_url", "Copy URL", show=True),
-        Binding("l", "check_login", "Check Login", show=True),
-        Binding("escape", "close_modal", "Close", show=True),
+        Binding(_k("open_url"), "open_url", "Open URL", show=True),
+        Binding(_k("copy_url"), "copy_url", "Copy URL", show=True),
+        Binding(_k("check_login"), "check_login", "Check Login", show=True),
+        Binding(_k("close_modal"), "close_modal", "Close", show=True),
     ]
 
     CSS = """

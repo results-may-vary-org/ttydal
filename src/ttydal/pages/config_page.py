@@ -1,11 +1,16 @@
 """Config page for application settings."""
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Vertical, VerticalScroll, Horizontal
 from textual.widgets import Label, Button, Select, Switch
 from textual.message import Message
 
 from ttydal.config import ConfigManager
+from ttydal.keybindings import get_key
+
+_nav = lambda action: get_key("navigation", action)
+_k = lambda action: get_key("config_page", action)
 
 
 class ConfigPage(Container):
@@ -31,6 +36,12 @@ class ConfigPage(Container):
         ("Rose Pine Dawn", "rose-pine-dawn"),
         ("Atom One Dark", "atom-one-dark"),
         ("Atom One Light", "atom-one-light"),
+    ]
+
+    BINDINGS = [
+        Binding(_nav("cursor_down"), "cursor_down", "Down", show=False),
+        Binding(_nav("cursor_up"), "cursor_up", "Up", show=False),
+        Binding(_k("toggle_switch"), "toggle_switch", "Toggle", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -254,3 +265,21 @@ class ConfigPage(Container):
             self.post_message(self.LoginRequested())
         elif event.button.id == "clear-logs-btn":
             self.post_message(self.ClearLogsRequested())
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down in focused widget."""
+        focused = self.app.focused
+        if isinstance(focused, Select):
+            focused.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up in focused widget."""
+        focused = self.app.focused
+        if isinstance(focused, Select):
+            focused.action_cursor_up()
+
+    def action_toggle_switch(self) -> None:
+        """Toggle focused switch widget."""
+        focused = self.app.focused
+        if isinstance(focused, Switch):
+            focused.toggle()

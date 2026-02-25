@@ -8,13 +8,16 @@ from textual.widgets import Label, Rule, Static
 
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.services.image_cache import ImageCache
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("cache_modal", action)
 
 
 class CacheModal(ModalScreen):
     """Modal screen displaying cache statistics."""
 
     BINDINGS = [
-        Binding("escape", "close_modal", "Close", show=True),
+        Binding(_k("close_modal"), "close_modal", "Close", show=True),
     ]
 
     CSS = """
