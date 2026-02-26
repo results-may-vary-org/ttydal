@@ -10,6 +10,9 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, ListView, ListItem, Label
 
 from ttydal.logger import log
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("search_modal", action)
 
 
 class SearchResultItem(ListItem):
@@ -54,9 +57,9 @@ class SearchModal(ModalScreen):
     """Modal screen for fuzzy searching albums and tracks."""
 
     BINDINGS = [
-        Binding("escape", "close_modal", "Close", show=True),
-        Binding("enter", "select_result", "Go to Album", show=True, priority=True),
-        Binding("space", "play_track", "Play Track", show=True, priority=True),
+        Binding(_k("close_modal"), "close_modal", "Close", show=True),
+        Binding(_k("select_result"), "select_result", "Go to Album", show=True, priority=True),
+        Binding(_k("play_track"), "play_track", "Play Track", show=True, priority=True),
     ]
 
     CSS = """

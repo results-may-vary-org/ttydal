@@ -11,13 +11,16 @@ from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.services.tidal_client import TidalClient
 from ttydal.config import ConfigManager
 from ttydal.services import PlaybackService
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("player_page", action)
 
 
 class PlayerPage(Container):
     """Player page containing all playback UI components."""
 
     BINDINGS = [
-        Binding("space", "toggle_playback", "Play/Pause", show=False),
+        Binding(_k("toggle_playback"), "toggle_playback", "Play/Pause", show=False),
     ]
 
     DEFAULT_CSS = """

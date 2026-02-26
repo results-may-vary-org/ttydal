@@ -1,0 +1,59 @@
+{
+  "theme": "rose-pine",
+  "quality": "high",
+  "auto_play": true,
+  "debug_logging_enabled": false,
+  "api_logging_enabled": false,
+  "keybindings": {
+    "navigation": {
+      "cursor_down": "down",
+      "cursor_up": "up",
+      "cursor_left": "left",
+      "cursor_right": "right"
+    },
+    "app": {
+      "show_player": "p",
+      "show_config": "c",
+      "focus_albums": "a",
+      "focus_tracks": "t",
+      "open_search": "/",
+      "open_cache_info": "i",
+      "toggle_play": "space",
+      "toggle_auto_play": "n",
+      "toggle_shuffle": "s",
+      "toggle_vibrant_color": "v",
+      "seek_backward": "shift+left",
+      "seek_forward": "shift+right",
+      "play_previous": "P",
+      "play_next": "N",
+      "quit": "q"
+    },
+    "player_page": {
+      "toggle_playback": "space"
+    },
+    "albums_list": {
+      "refresh_albums": "r"
+    },
+    "tracks_list": {
+      "play_selected_track": "enter",
+      "refresh_tracks": "r"
+    },
+    "search_modal": {
+      "close_modal": "escape",
+      "select_result": "enter",
+      "play_track": "space"
+    },
+    "cache_modal": {
+      "close_modal": "escape"
+    },
+    "login_modal": {
+      "open_url": "o",
+      "copy_url": "c",
+      "check_login": "l",
+      "close_modal": "escape"
+    },
+    "config_page": {
+      "toggle_switch": "space"
+    }
+  }
+}

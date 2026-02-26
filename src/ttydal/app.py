@@ -21,6 +21,9 @@ from ttydal.components.tracks_list import TracksList
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.config import ConfigManager
 from ttydal.logger import log
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("app", action)
 
 
 class TtydalApp(App):
@@ -41,21 +44,21 @@ class TtydalApp(App):
     """
 
     BINDINGS = [
-        Binding("p", "show_player", "Player", show=True),
-        Binding("c", "show_config", "Config", show=True),
-        Binding("a", "focus_albums", "Albums", show=True),
-        Binding("t", "focus_tracks", "Tracks", show=True),
-        Binding("/", "open_search", "Search", show=True),
-        Binding("i", "open_cache_info", "Cache", show=True),
-        Binding("space", "toggle_play", "Play/Pause", show=True),
-        Binding("n", "toggle_auto_play", "Auto-Play", show=True),
-        Binding("s", "toggle_shuffle", "Shuffle", show=True),
-        Binding("v", "toggle_vibrant_color", "Vibrant", show=True),
-        Binding("shift+left", "seek_backward", "Seek -10s", show=True),
-        Binding("shift+right", "seek_forward", "Seek +10s", show=True),
-        Binding("P", "play_previous", "Previous", show=True),
-        Binding("N", "play_next", "Next", show=True),
-        Binding("q", "quit", "Quit", show=True),
+        Binding(_k("show_player"), "show_player", "Player", show=True),
+        Binding(_k("show_config"), "show_config", "Config", show=True),
+        Binding(_k("focus_albums"), "focus_albums", "Albums", show=True),
+        Binding(_k("focus_tracks"), "focus_tracks", "Tracks", show=True),
+        Binding(_k("open_search"), "open_search", "Search", show=True),
+        Binding(_k("open_cache_info"), "open_cache_info", "Cache", show=True),
+        Binding(_k("toggle_play"), "toggle_play", "Play/Pause", show=True),
+        Binding(_k("toggle_auto_play"), "toggle_auto_play", "Auto-Play", show=True),
+        Binding(_k("toggle_shuffle"), "toggle_shuffle", "Shuffle", show=True),
+        Binding(_k("toggle_vibrant_color"), "toggle_vibrant_color", "Vibrant", show=True),
+        Binding(_k("seek_backward"), "seek_backward", "Seek -10s", show=True),
+        Binding(_k("seek_forward"), "seek_forward", "Seek +10s", show=True),
+        Binding(_k("play_previous"), "play_previous", "Previous", show=True),
+        Binding(_k("play_next"), "play_next", "Next", show=True),
+        Binding(_k("quit"), "quit", "Quit", show=True),
     ]
 
     def __init__(self):
