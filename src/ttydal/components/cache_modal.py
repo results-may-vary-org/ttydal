@@ -18,6 +18,7 @@ class CacheModal(ModalScreen):
 
     BINDINGS = [
         Binding(_k("close_modal"), "close_modal", "Close", show=True),
+        Binding("q", "app.quit", "Quit", show=False),
     ]
 
     CSS = """
