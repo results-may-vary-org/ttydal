@@ -65,6 +65,10 @@ class AlbumsList(Container):
     AlbumsList ListItem:odd {
         background: $boost;
     }
+
+    AlbumsList.no-stripes ListItem:odd {
+        background: transparent;
+    }
     """
 
     class AlbumSelected(Message):
@@ -103,6 +107,11 @@ class AlbumsList(Container):
 
     def on_mount(self) -> None:
         """Load albums when mounted and auto-select My Tracks."""
+        from ttydal.config import ConfigManager
+
+        if not ConfigManager().list_striping:
+            self.add_class("no-stripes")
+
         # Delay loading to ensure session is ready
         log("AlbumsList.on_mount() called - scheduling delayed load")
         self.set_timer(0.5, self.delayed_load)

@@ -66,6 +66,10 @@ class TracksList(Container):
     TracksList ListItem:odd {
         background: $boost;
     }
+
+    TracksList.no-stripes ListItem:odd {
+        background: transparent;
+    }
     """
 
     class TrackSelected(Message):
@@ -123,6 +127,11 @@ class TracksList(Container):
 
     def on_mount(self) -> None:
         """Initialize when mounted."""
+        from ttydal.config import ConfigManager
+
+        if not ConfigManager().list_striping:
+            self.add_class("no-stripes")
+
         # Register callbacks for track end and time position events
         if not self._track_end_callback_registered:
             from ttydal.services.mpv_playback_engine import MpvPlaybackEngine

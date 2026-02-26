@@ -603,6 +603,28 @@ class TtydalApp(App):
             log(f"Error clearing logs: {e}")
             self.notify(f"Error clearing logs: {e}", severity="error")
 
+    def on_config_page_list_striping_changed(
+        self, event: ConfigPage.ListStripingChanged
+    ) -> None:
+        """Handle list striping setting change.
+
+        Args:
+            event: List striping changed event
+        """
+        player_page = self.query_one(PlayerPage)
+        albums_list = player_page.query_one(AlbumsList)
+        tracks_list = player_page.query_one(TracksList)
+
+        if event.enabled:
+            albums_list.remove_class("no-stripes")
+            tracks_list.remove_class("no-stripes")
+        else:
+            albums_list.add_class("no-stripes")
+            tracks_list.add_class("no-stripes")
+
+        status = "enabled" if event.enabled else "disabled"
+        self.notify(f"List striping {status}", severity="information")
+
     def on_unmount(self) -> None:
         """Cleanup when application unmounts."""
         log("TtydalApp.on_unmount() called - cleaning up...")
