@@ -9,6 +9,7 @@ import json
 import shutil
 from importlib import resources
 from typing import Any
+from pathlib import Path
 
 from ttydal.dirs import config_dir
 
@@ -34,8 +35,14 @@ class ConfigManager:
         self.config_file = self.config_dir / "config.json"
         self._config: dict[str, Any] = {}
         self._debug_override: bool = False
+        self._ensure_dir(self.config_dir)
         self._load_config()
         self._initialized = True
+
+    @staticmethod
+    def _ensure_dir(path: Path) -> None:
+        """Create a directory (and parents) if it doesn't exist."""
+        path.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _get_default_config() -> dict[str, Any]:
@@ -49,10 +56,10 @@ class ConfigManager:
 
     def _load_config(self) -> None:
         """Load configuration from file, falling back to bundled defaults."""
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        self._ensure_dir(self.config_dir)
 
         if self.config_file.exists():
-            with open(self.config_file, "r") as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 self._config = json.load(f)
         else:
             # No user config — use bundled defaults (don't write to disk)
@@ -71,7 +78,6 @@ class ConfigManager:
         Raises:
             FileExistsError: If config already exists and force is False.
         """
-        from pathlib import Path
         cfg_dir = config_dir()
         cfg_file = cfg_dir / "config.json"
 
@@ -87,7 +93,8 @@ class ConfigManager:
 
     def _save_config(self) -> None:
         """Save configuration to file."""
-        with open(self.config_file, "w") as f:
+        self._ensure_dir(self.config_dir)
+        with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(self._config, f, indent=2)
 
     def get(self, key: str, default: Any = None) -> Any:
