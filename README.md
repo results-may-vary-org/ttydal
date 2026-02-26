@@ -28,12 +28,11 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Player bar displaying track info, artist, album, playback time, and quality metrics
 - Multiple theme options for interface customization
 - Fully keyboard-driven interface
-- `new` Configurable keybindings - customize all keyboard shortcuts (see [KEYBINDINGS.md](docs/KEYBINDINGS.md))
 - Settings auto-save on change
 - Cover art display in albums list, tracks list, and player bar
 - Image caching for cover art
 - Vibrant color mode - colorize player bar text with album's vibrant color
-- `new` Cache and config file are now stored in conventional directories for each platform
+- `new` Configurable keybindings - customize all keyboard shortcuts (see [KEYBINDINGS.md](docs/KEYBINDINGS.md))
 
 *warning: this video contain audio of music, mind your volume*
 
@@ -110,6 +109,14 @@ ttydal
 ## Keybindings
 
 All keybindings are configurable. See [KEYBINDINGS.md](docs/KEYBINDINGS.md) for the full reference and instructions on customizing them.
+
+## Flag for `ttydal` cmd
+
+`ttydal --init-config` to create a config file, if not exist, from the default value
+
+`ttydal --init-config --force` to overwrite the existing config file with the default value
+
+`ttydal --debug` enable the log of debug information into the config folder
 
 ## Configuration
 
