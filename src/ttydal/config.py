@@ -135,3 +135,13 @@ class ConfigManager:
     def vibrant_color(self, value: bool) -> None:
         """Set the vibrant color setting."""
         self.set("vibrant_color", value)
+
+    @property
+    def list_striping(self) -> bool:
+        """Get the list striping setting (alternating row backgrounds)."""
+        return self.get("list_striping", True)
+
+    @list_striping.setter
+    def list_striping(self, value: bool) -> None:
+        """Set the list striping setting."""
+        self.set("list_striping", value)

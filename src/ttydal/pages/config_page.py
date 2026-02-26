@@ -128,6 +128,13 @@ class ConfigPage(Container):
 
         pass
 
+    class ListStripingChanged(Message):
+        """Message sent when list striping setting changes."""
+
+        def __init__(self, enabled: bool) -> None:
+            super().__init__()
+            self.enabled = enabled
+
     def __init__(self):
         """Initialize the config page."""
         super().__init__()
@@ -170,6 +177,10 @@ class ConfigPage(Container):
                 with Horizontal():
                     yield Label("Auto-Play Next Track:")
                     yield Switch(value=self.config.auto_play, id="auto-play-switch")
+
+                with Horizontal():
+                    yield Label("List Striping:")
+                    yield Switch(value=self.config.list_striping, id="list-striping-switch")
 
                 # Tidal Account section
                 yield Label("")
@@ -235,6 +246,11 @@ class ConfigPage(Container):
         # Auto-play: save immediately
         if event.switch.id == "auto-play-switch":
             self.config.auto_play = event.value
+
+        # List striping: save and notify for live update
+        elif event.switch.id == "list-striping-switch":
+            self.config.list_striping = event.value
+            self.post_message(self.ListStripingChanged(event.value))
 
         # Debug logging: save immediately
         elif event.switch.id == "debug-logging-switch":
