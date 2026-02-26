@@ -17,13 +17,20 @@ from ttydal.services import AlbumsService, TracksService, TidalServiceError
 from ttydal.services.tracks_cache import TracksCache
 from ttydal.logger import log
 from ttydal.components.cover_art_item import CoverArtItem
+from ttydal.keybindings import get_key
+
+_k = lambda action: get_key("albums_list", action)
+_nav = lambda action: get_key("navigation", action)
 
 
 class AlbumsList(Container):
     """Albums list widget for browsing user albums."""
 
     BINDINGS = [
-        Binding("r", "refresh_albums", "Refresh", show=True),
+        Binding(_k("refresh_albums"), "refresh_albums", "Refresh", show=True),
+        Binding(_nav("cursor_down"), "cursor_down", "Down", show=False),
+        Binding(_nav("cursor_up"), "cursor_up", "Up", show=False),
+        Binding(_nav("cursor_right"), "focus_tracks", "Tracks", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -378,6 +385,27 @@ class AlbumsList(Container):
         self._preload_in_progress = False
         self._trigger_preload_after_refresh = True
         self.load_albums()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down in the list."""
+        list_view = self.query_one("#albums-listview", ListView)
+        list_view.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up in the list."""
+        list_view = self.query_one("#albums-listview", ListView)
+        list_view.action_cursor_up()
+
+    def action_focus_tracks(self) -> None:
+        """Move focus to tracks list."""
+        from ttydal.components.tracks_list import TracksList
+
+        try:
+            tracks_list = self.app.query_one(TracksList)
+            list_view = tracks_list.query_one("#tracks-listview")
+            list_view.focus()
+        except Exception:
+            pass
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle album or playlist selection.

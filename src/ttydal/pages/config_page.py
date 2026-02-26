@@ -1,11 +1,16 @@
 """Config page for application settings."""
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Vertical, VerticalScroll, Horizontal
 from textual.widgets import Label, Button, Select, Switch
 from textual.message import Message
 
 from ttydal.config import ConfigManager
+from ttydal.keybindings import get_key
+
+_nav = lambda action: get_key("navigation", action)
+_k = lambda action: get_key("config_page", action)
 
 
 class ConfigPage(Container):
@@ -31,6 +36,12 @@ class ConfigPage(Container):
         ("Rose Pine Dawn", "rose-pine-dawn"),
         ("Atom One Dark", "atom-one-dark"),
         ("Atom One Light", "atom-one-light"),
+    ]
+
+    BINDINGS = [
+        Binding(_nav("cursor_down"), "cursor_down", "Down", show=False),
+        Binding(_nav("cursor_up"), "cursor_up", "Up", show=False),
+        Binding(_k("toggle_switch"), "toggle_switch", "Toggle", show=False),
     ]
 
     DEFAULT_CSS = """
@@ -214,15 +225,17 @@ class ConfigPage(Container):
         # Theme: preview and save immediately
         if event.select.id == "theme-select" and event.value:
             theme = str(event.value)
-            # Apply theme immediately for preview
+            if theme == self.config.theme:
+                return
             self.app.theme = theme
-            # Save to config
             self.config.theme = theme
             self.post_message(self.ThemeChanged(theme))
 
         # Quality: save immediately
         elif event.select.id == "quality-select" and event.value:
             quality = str(event.value)
+            if quality == self.config.quality:
+                return
             self.config.quality = quality
             self.post_message(self.QualityChanged(quality))
 
@@ -234,14 +247,20 @@ class ConfigPage(Container):
         """
         # Auto-play: save immediately
         if event.switch.id == "auto-play-switch":
+            if event.value == self.config.auto_play:
+                return
             self.config.auto_play = event.value
 
         # Debug logging: save immediately
         elif event.switch.id == "debug-logging-switch":
+            if event.value == self.config.debug_logging_enabled:
+                return
             self.config.debug_logging_enabled = event.value
 
         # API logging: save immediately
         elif event.switch.id == "api-logging-switch":
+            if event.value == self.config.api_logging_enabled:
+                return
             self.config.api_logging_enabled = event.value
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -254,3 +273,21 @@ class ConfigPage(Container):
             self.post_message(self.LoginRequested())
         elif event.button.id == "clear-logs-btn":
             self.post_message(self.ClearLogsRequested())
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down in focused widget."""
+        focused = self.app.focused
+        if isinstance(focused, Select):
+            focused.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up in focused widget."""
+        focused = self.app.focused
+        if isinstance(focused, Select):
+            focused.action_cursor_up()
+
+    def action_toggle_switch(self) -> None:
+        """Toggle focused switch widget."""
+        focused = self.app.focused
+        if isinstance(focused, Switch):
+            focused.toggle()

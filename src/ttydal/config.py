@@ -1,10 +1,15 @@
 """Configuration manager for ttydal.
 
 Manages application configuration stored in the platform config directory.
+Run `ttydal --init-config` to create a config file from bundled defaults.
+The app works without a config file (uses bundled defaults in-memory).
 """
 
 import json
+import shutil
+from importlib import resources
 from typing import Any
+from pathlib import Path
 
 from ttydal.dirs import config_dir
 
@@ -29,30 +34,67 @@ class ConfigManager:
         self.config_dir = config_dir()
         self.config_file = self.config_dir / "config.json"
         self._config: dict[str, Any] = {}
+        self._debug_override: bool = False
+        self._ensure_dir(self.config_dir)
         self._load_config()
         self._initialized = True
 
+    @staticmethod
+    def _ensure_dir(path: Path) -> None:
+        """Create a directory (and parents) if it doesn't exist."""
+        path.mkdir(parents=True, exist_ok=True)
+
+    @staticmethod
+    def _get_default_config() -> dict[str, Any]:
+        """Load the default configuration from the bundled default_config.json."""
+        default_config_file = resources.files("ttydal").joinpath("default_config.json")
+        return json.loads(default_config_file.read_text(encoding="utf-8"))
+
+    def _get_default_keybindings(self) -> dict[str, dict[str, str]]:
+        """Get default keybindings configuration."""
+        return self._get_default_config().get("keybindings", {})
+
     def _load_config(self) -> None:
-        """Load configuration from file or create default config."""
-        self.config_dir.mkdir(parents=True, exist_ok=True)
+        """Load configuration from file, falling back to bundled defaults."""
+        self._ensure_dir(self.config_dir)
 
         if self.config_file.exists():
-            with open(self.config_file, "r") as f:
+            with open(self.config_file, "r", encoding="utf-8") as f:
                 self._config = json.load(f)
         else:
-            # Default configuration
-            self._config = {
-                "theme": "rose-pine",
-                "quality": "high",  # high or low
-                "auto_play": True,  # auto-play next track when current finishes
-                "debug_logging_enabled": False,  # enable debug logging
-                "api_logging_enabled": False,  # enable API request/response logging
-            }
-            self._save_config()
+            # No user config — use bundled defaults (don't write to disk)
+            self._config = self._get_default_config()
+
+    @staticmethod
+    def init_config(force: bool = False) -> "Path":
+        """Copy the bundled default config to the platform config directory.
+
+        Args:
+            force: Overwrite existing config if True.
+
+        Returns:
+            Path to the created config file.
+
+        Raises:
+            FileExistsError: If config already exists and force is False.
+        """
+        cfg_dir = config_dir()
+        cfg_file = cfg_dir / "config.json"
+
+        if cfg_file.exists() and not force:
+            raise FileExistsError(
+                f"Config already exists at {cfg_file}. Use --force to overwrite."
+            )
+
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        default_config_file = resources.files("ttydal").joinpath("default_config.json")
+        shutil.copy2(str(default_config_file), str(cfg_file))
+        return cfg_file
 
     def _save_config(self) -> None:
         """Save configuration to file."""
-        with open(self.config_file, "w") as f:
+        self._ensure_dir(self.config_dir)
+        with open(self.config_file, "w", encoding="utf-8") as f:
             json.dump(self._config, f, indent=2)
 
     def get(self, key: str, default: Any = None) -> Any:
@@ -99,7 +141,7 @@ class ConfigManager:
     @property
     def debug_logging_enabled(self) -> bool:
         """Get the debug logging enabled setting."""
-        return self.get("debug_logging_enabled", True)
+        return self._debug_override or self.get("debug_logging_enabled", False)
 
     @debug_logging_enabled.setter
     def debug_logging_enabled(self, value: bool) -> None:
@@ -135,3 +177,24 @@ class ConfigManager:
     def vibrant_color(self, value: bool) -> None:
         """Set the vibrant color setting."""
         self.set("vibrant_color", value)
+
+    def get_keybinding(self, component: str, action: str) -> str:
+        """Get a keybinding for a specific component and action.
+
+        Args:
+            component: Component name (e.g., "app", "player_page", "albums_list")
+            action: Action name (e.g., "show_player", "toggle_play")
+
+        Returns:
+            Key binding string (e.g., "p", "space", "shift+left")
+        """
+        keybindings = self.get("keybindings", {})
+        defaults = self._get_default_keybindings()
+
+        # Get key from user config, fall back to default if not found
+        user_key = keybindings.get(component, {}).get(action)
+        if user_key is not None:
+            return user_key
+
+        # Fall back to default
+        return defaults.get(component, {}).get(action, "")
