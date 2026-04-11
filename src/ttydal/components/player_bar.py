@@ -34,7 +34,7 @@ class PlayerBar(Container):
 
     PlayerBar #cover-art-container {
         width: 10;
-        height: 5;
+        height: 100%;
         min-width: 10;
         max-width: 10;
     }
@@ -46,7 +46,7 @@ class PlayerBar(Container):
 
     PlayerBar #cover-placeholder {
         width: 10;
-        height: 5;
+        height: 100%;
         content-align: center middle;
         color: $text-muted;
         hatch: cross $primary 30%;
@@ -55,6 +55,10 @@ class PlayerBar(Container):
     PlayerBar #info-container {
         width: 1fr;
         height: 100%;
+    }
+
+    PlayerBar #status-info {
+        display: none;
     }
     """
 
@@ -68,6 +72,7 @@ class PlayerBar(Container):
         self._current_cover_url: str | None = None
         self._image_widget: Image | None = None
         self._vibrant_color: str | None = None
+        self._narrow_mode: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the player bar UI."""
@@ -83,6 +88,8 @@ class PlayerBar(Container):
                             yield ProgressBar(total=100, show_eta=False, id="progress")
                         with Center():
                             yield Label("0:00 / 0:00  |  Quality: N/A", id="time-info")
+                        with Center():
+                            yield Label("", id="status-info")
 
     def on_mount(self) -> None:
         """Set up update interval when mounted."""
@@ -143,13 +150,11 @@ class PlayerBar(Container):
         """
         indicators = []
 
-        # Shuffle indicator
         if self.config.shuffle:
             indicators.append("[green]⏺[/green] Shuffle")
         else:
             indicators.append("[dim]⏺[/dim] Shuffle")
 
-        # Auto-play indicator
         if self.config.auto_play:
             indicators.append("[green]⏺[/green] Auto")
         else:
@@ -157,22 +162,64 @@ class PlayerBar(Container):
 
         return "  ".join(indicators)
 
+    def _format_quality_short(self) -> str:
+        """Abbreviated quality: bit_depth/kHz only, no quality name."""
+        if not self.stream_metadata:
+            return self.quality.upper() if self.quality else "N/A"
+
+        bit_depth = self.stream_metadata.get("bit_depth")
+        sample_rate = self.stream_metadata.get("sample_rate")
+
+        if bit_depth and sample_rate:
+            return f"{bit_depth}bit/{sample_rate / 1000:.0f}kHz"
+        if sample_rate:
+            return f"{sample_rate / 1000:.0f}kHz"
+
+        return self.stream_metadata.get("audio_quality", "N/A") or "N/A"
+
+    def _format_quality_tiny(self) -> str:
+        """Minimal quality: just kHz value."""
+        if not self.stream_metadata:
+            q = self.quality.upper() if self.quality else "N/A"
+            return q[:4]
+
+        sample_rate = self.stream_metadata.get("sample_rate")
+        if sample_rate:
+            return f"{sample_rate / 1000:.0f}kHz"
+
+        q = self.stream_metadata.get("audio_quality", "")
+        return (q[:4] if q else "N/A")
+
     def update_display(self) -> None:
         """Update the player bar display."""
         track = self.player.get_current_track()
         progress_bar = self.query_one("#progress", ProgressBar)
         track_label = self.query_one("#track-info", Label)
         time_label = self.query_one("#time-info", Label)
+        status_label = self.query_one("#status-info", Label)
+
+        # Available width for the info container (terminal width minus cover art)
+        info_width = max(0, self.size.width - 12)
+
+        # Responsive layout: narrow mode stacks time+quality and status on separate lines
+        is_narrow = info_width < 55
+        if is_narrow != self._narrow_mode:
+            self._narrow_mode = is_narrow
+            status_label.display = is_narrow
+            self.styles.height = 6 if is_narrow else 5
 
         if track:
             track_name = track.get("name", "Unknown")
             artist = track.get("artist", "Unknown Artist")
             album = track.get("album", "Unknown Album")
 
-            # Format: "Track by Artist from Album"
             track_text = f"{track_name} by {artist} from {album}"
 
-            # Apply vibrant color if set
+            # Truncate title if it exceeds available width
+            max_title = max(10, info_width - 2)
+            if len(track_text) > max_title:
+                track_text = track_text[: max(1, max_title - 3)] + "..."
+
             if self._vibrant_color:
                 track_label.update(f"[{self._vibrant_color}]{track_text}[/]")
             else:
@@ -183,19 +230,44 @@ class PlayerBar(Container):
 
             if duration > 0:
                 progress_bar.update(total=duration, progress=time_pos)
-                # Show time, quality, and status indicators
                 time_str = (
                     f"{self._format_time(time_pos)} / {self._format_time(duration)}"
                 )
-                quality_str = self._format_quality()
-                status_str = self._format_status_indicators()
-                time_label.update(f"{time_str}  |  {quality_str}  |  {status_str}")
+                self._update_info_labels(
+                    time_label, status_label, time_str, info_width, is_narrow
+                )
         else:
             track_label.update("No track playing")
             progress_bar.update(total=100, progress=0)
-            quality_str = self._format_quality()
-            status_str = self._format_status_indicators()
-            time_label.update(f"0:00 / 0:00  |  {quality_str}  |  {status_str}")
+            self._update_info_labels(
+                time_label, status_label, "0:00 / 0:00", info_width, is_narrow
+            )
+
+    def _update_info_labels(
+        self,
+        time_label: Label,
+        status_label: Label,
+        time_str: str,
+        info_width: int,
+        is_narrow: bool,
+    ) -> None:
+        """Render time/quality/status into the info labels based on available width."""
+        status_str = self._format_status_indicators()
+
+        if is_narrow:
+            # Stacked: time + compact quality on line 1, full status on line 2
+            time_label.update(f"{time_str}  |  {self._format_quality_tiny()}")
+            status_label.update(status_str)
+        elif info_width >= 65:
+            # Full single line
+            time_label.update(
+                f"{time_str}  |  {self._format_quality()}  |  {status_str}"
+            )
+        else:
+            # Medium single line: shorter quality string
+            time_label.update(
+                f"{time_str}  |  {self._format_quality_short()}  |  {status_str}"
+            )
 
     def update_quality_display(self, quality: str) -> None:
         """Update quality display.
