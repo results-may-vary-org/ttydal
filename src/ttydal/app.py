@@ -58,6 +58,7 @@ class TtydalApp(App):
         Binding(_k("seek_forward"), "seek_forward", "Seek +10s", show=True),
         Binding(_k("play_previous"), "play_previous", "Previous", show=True),
         Binding(_k("play_next"), "play_next", "Next", show=True),
+        Binding(_k("open_debug_info"), "open_debug_info", "Debug", show=True),
         Binding(_k("quit"), "quit", "Quit", show=True),
     ]
 
@@ -391,6 +392,70 @@ class TtydalApp(App):
         cache_modal = CacheModal()
         self.push_screen(cache_modal)
 
+    def action_open_debug_info(self) -> None:
+        """Open the debug info modal showing live playback state."""
+        log("TtydalApp.action_open_debug_info() called")
+        from ttydal.components.playlist_info_modal import PlaylistInfoModal
+
+        engine = self.player
+        config = self.config
+
+        try:
+            tracks_list = self.query_one(TracksList)
+            active_playlist = tracks_list._active_playlist
+            current_idx = tracks_list.current_playing_index
+            active_item_id = tracks_list._active_playlist_item_id
+        except Exception:
+            active_playlist = []
+            current_idx = None
+            active_item_id = None
+
+        def fmt_time(s: float) -> str:
+            s = int(s)
+            return f"{s // 60}:{s % 60:02d}"
+
+        import subprocess
+
+        def _run(cmd: list[str]) -> str:
+            try:
+                r = subprocess.run(cmd, capture_output=True, text=True, timeout=2)
+                return (r.stdout.strip() or r.stderr.strip() or "(no output)")
+            except FileNotFoundError:
+                return "(playerctl not found)"
+            except subprocess.TimeoutExpired:
+                return "(timeout)"
+            except Exception as e:
+                return f"(error: {e})"
+
+        playerctl_players = _run(["playerctl", "-l"])
+        playerctl_status  = _run(["playerctl", "-p", "ttydal", "status"])
+        playerctl_meta    = _run(["playerctl", "-p", "ttydal", "metadata"])
+
+        playlist_info = {
+            # Engine
+            "engine_initialized": engine.mpv is not None,
+            "is_playing": engine.is_playing(),
+            "time_pos": fmt_time(engine.get_time_pos()),
+            "duration": fmt_time(engine.get_duration()),
+            # Config
+            "quality": config.quality,
+            "shuffle": config.shuffle,
+            "auto_play": config.auto_play,
+            "vibrant_color": config.vibrant_color,
+            # Active playlist
+            "active_item_id": active_item_id,
+            "current_playing_index": current_idx,
+            "tracks": active_playlist,
+            # Current track
+            "current_track": engine.get_current_track(),
+            # MPRIS / playerctl
+            "playerctl_players": playerctl_players,
+            "playerctl_status":  playerctl_status,
+            "playerctl_meta":    playerctl_meta,
+        }
+
+        self.push_screen(PlaylistInfoModal(playlist_info))
+
     def on_search_modal_album_selected(self, event: SearchModal.AlbumSelected) -> None:
         """Handle album selection from search modal.
 
@@ -646,6 +711,13 @@ class TtydalApp(App):
             log("  - Workers cancelled")
         except Exception as e:
             log(f"  - Error cancelling workers: {e}")
+
+        try:
+            player_page = self.query_one(PlayerPage)
+            if hasattr(player_page, "mpris_service"):
+                player_page.mpris_service.shutdown()
+        except Exception as e:
+            log(f"  - Error shutting down MPRIS service: {e}")
 
         log("  - Calling self.exit()...")
         self.exit()

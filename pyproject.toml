@@ -14,6 +14,7 @@ dependencies = [
     "cachetools>=6.2.4",
     "fuzzysearch>=0.8.1",
     "keyring>=25.7.0",
+    "mpris-server>=0.9.6",
     "mpv>=1.0.8",
     "platformdirs>=4.5.1",
     "pydantic>=2.12.5",
