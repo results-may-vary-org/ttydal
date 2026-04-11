@@ -113,6 +113,9 @@ class TracksList(Container):
         # Shuffle state
         self.shuffled_indices: list[int] = []  # Shuffled order of track indices
         self.shuffle_position: int = 0  # Current position in the shuffled order
+        # Active playback playlist (snapshot of tracks when a track was explicitly started)
+        self._active_playlist: list = []
+        self._active_playlist_item_id: str | None = None
         # Pre-fetch state for next track
         self._prefetched_track_id: str | None = None
         self._prefetched_url: str | None = None
@@ -156,26 +159,28 @@ class TracksList(Container):
             log("=" * 80)
             return
 
-        # Verify we have tracks and a current position
-        if self.current_playing_index is None or not self.tracks:
-            log("  - No tracks or index, cannot auto-play")
+        # Verify we have an active playlist and a current position
+        if self.current_playing_index is None or not self._active_playlist:
+            log("  - No active playlist or index, cannot auto-play")
             log("=" * 80)
             return
 
         # Get next track index (respects shuffle mode)
         next_index = self._get_next_track_index()
-        next_track = self.tracks[next_index]
+        next_track = self._active_playlist[next_index]
         log(
-            f"  - Playing next: {next_track['name']} (index {next_index}/{len(self.tracks) - 1})"
+            f"  - Playing next: {next_track['name']} (index {next_index}/{len(self._active_playlist) - 1})"
         )
 
         # Update state
         self.current_playing_index = next_index
+        self._playing_item_id = self._active_playlist_item_id
 
-        # Update UI
+        # Update UI (only scroll the list if we're viewing the playing album)
         try:
-            list_view = self.query_one("#tracks-listview", ListView)
-            list_view.index = next_index
+            if self.current_item_id == self._active_playlist_item_id:
+                list_view = self.query_one("#tracks-listview", ListView)
+                list_view.index = next_index
             self._update_track_indicators()
         except Exception as e:
             log(f"  - UI update error: {e}")
@@ -217,8 +222,8 @@ class TracksList(Container):
         if self._prefetched_track_id is not None or self._prefetch_in_progress:
             return
 
-        # Skip if no tracks or not playing
-        if self.current_playing_index is None or not self.tracks:
+        # Skip if no active playlist or not playing
+        if self.current_playing_index is None or not self._active_playlist:
             return
 
         # Check if auto-play is enabled (no point pre-fetching if disabled)
@@ -257,7 +262,7 @@ class TracksList(Container):
         try:
             # Get next track index (respects shuffle mode)
             next_index = self._get_next_track_index()
-            next_track = self.tracks[next_index]
+            next_track = self._active_playlist[next_index]
 
             log(f"TracksList: Pre-fetching URL for: {next_track['name']}")
 
@@ -290,14 +295,14 @@ class TracksList(Container):
         self._prefetch_in_progress = False
 
     def _generate_shuffle_order(self) -> None:
-        """Generate a new random shuffle order for tracks."""
-        if not self.tracks:
+        """Generate a new random shuffle order for the active playlist."""
+        if not self._active_playlist:
             self.shuffled_indices = []
             self.shuffle_position = 0
             return
 
         # Create a list of all indices and shuffle it
-        self.shuffled_indices = list(range(len(self.tracks)))
+        self.shuffled_indices = list(range(len(self._active_playlist)))
         random.shuffle(self.shuffled_indices)
 
         # If currently playing, put the current track at position 0
@@ -312,6 +317,18 @@ class TracksList(Container):
         log(
             f"TracksList: Generated shuffle order: {self.shuffled_indices[:5]}... (showing first 5)"
         )
+
+    def _capture_active_playlist(self) -> None:
+        """Snapshot current tracks as the active playback playlist."""
+        from ttydal.config import ConfigManager
+
+        self._active_playlist = list(self.tracks)
+        self._active_playlist_item_id = self.current_item_id
+        if ConfigManager().shuffle:
+            self._generate_shuffle_order()
+        else:
+            self.shuffled_indices = []
+            self.shuffle_position = 0
 
     def on_shuffle_changed(self, enabled: bool) -> None:
         """Handle shuffle setting change.
@@ -350,7 +367,7 @@ class TracksList(Container):
             # Normal sequential order
             if self.current_playing_index is None:
                 return 0
-            return (self.current_playing_index + 1) % len(self.tracks)
+            return (self.current_playing_index + 1) % len(self._active_playlist)
 
     def _get_previous_track_index(self) -> int:
         """Get the previous track index, respecting shuffle mode."""
@@ -375,8 +392,8 @@ class TracksList(Container):
         else:
             # Normal sequential order
             if self.current_playing_index is None:
-                return len(self.tracks) - 1
-            return (self.current_playing_index - 1) % len(self.tracks)
+                return len(self._active_playlist) - 1
+            return (self.current_playing_index - 1) % len(self._active_playlist)
 
     def load_tracks(
         self, item_id: str, item_name: str, item_type: str = "album"
@@ -645,6 +662,9 @@ class TracksList(Container):
             else:
                 log("  - No track playing, starting playback")
 
+            # Capture the current album as the active playback playlist
+            self._capture_active_playlist()
+
             # Update current playing index and album
             self.current_playing_index = index
             self._playing_item_id = self.current_item_id
@@ -716,6 +736,9 @@ class TracksList(Container):
                 log(f"  - Selected track: {track['name']} (ID: {track['id']})")
                 log("  - Playing/restarting track (Enter always plays)")
 
+                # Capture the current album as the active playback playlist
+                self._capture_active_playlist()
+
                 # Update current playing index and album for auto-play tracking
                 self.current_playing_index = index
                 self._playing_item_id = self.current_item_id
@@ -730,31 +753,33 @@ class TracksList(Container):
                 log("=" * 80)
 
     def play_next_track(self) -> None:
-        """Play the next track in the list."""
-        if not self.tracks:
+        """Play the next track in the active playlist."""
+        if not self._active_playlist:
             return
 
         next_index = self._get_next_track_index()
-        next_track = self.tracks[next_index]
+        next_track = self._active_playlist[next_index]
         self.current_playing_index = next_index
-        self._playing_item_id = self.current_item_id
+        self._playing_item_id = self._active_playlist_item_id
 
-        list_view = self.query_one("#tracks-listview", ListView)
-        list_view.index = next_index
+        if self.current_item_id == self._active_playlist_item_id:
+            list_view = self.query_one("#tracks-listview", ListView)
+            list_view.index = next_index
         self._update_track_indicators()
         self.post_message(self.TrackSelected(next_track["id"], next_track))
 
     def play_previous_track(self) -> None:
-        """Play the previous track in the list."""
-        if not self.tracks:
+        """Play the previous track in the active playlist."""
+        if not self._active_playlist:
             return
 
         prev_index = self._get_previous_track_index()
-        prev_track = self.tracks[prev_index]
+        prev_track = self._active_playlist[prev_index]
         self.current_playing_index = prev_index
-        self._playing_item_id = self.current_item_id
+        self._playing_item_id = self._active_playlist_item_id
 
-        list_view = self.query_one("#tracks-listview", ListView)
-        list_view.index = prev_index
+        if self.current_item_id == self._active_playlist_item_id:
+            list_view = self.query_one("#tracks-listview", ListView)
+            list_view.index = prev_index
         self._update_track_indicators()
         self.post_message(self.TrackSelected(prev_track["id"], prev_track))
