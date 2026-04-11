@@ -9,7 +9,7 @@ callbacks.
 Architecture
 ------------
 - GLib daemon thread: owns the D-Bus session (server.loop(background=True))
-- mpv C thread: fires on_pos_change / on_pause_change callbacks
+- mpv C thread: fires on_pause_change callbacks
 - Textual/asyncio thread: owns UI — never called from here
 
 Thread safety: mpv callbacks call events.on_title() / events.on_playpause()
@@ -63,9 +63,7 @@ class MprisService:
                 # ---- State reads (called from GLib thread) -------------------
 
                 def get_playstate(self) -> PlayState:
-                    if engine.mpv is None:
-                        return PlayState.STOPPED
-                    if engine.mpv.time_pos is None:
+                    if engine.mpv is None or engine.mpv.time_pos is None:
                         return PlayState.STOPPED
                     return PlayState.PAUSED if engine.mpv.pause else PlayState.PLAYING
 
@@ -74,7 +72,7 @@ class MprisService:
                     if not track:
                         return {}
                     track_id = str(track.get("id", "0"))
-                    duration_s = track.get("duration", 0) or 0
+                    duration_s = track.get("duration", 0)
                     return {
                         "mpris:trackid": f"/org/ttydal/track/{track_id}",
                         "mpris:length": int(duration_s * 1_000_000),
@@ -146,8 +144,7 @@ class MprisService:
             self._server = Server(name="ttydal", adapter=self._adapter)
             self._server.loop(background=True)
 
-            # Register engine callbacks to push state changes to D-Bus
-            engine.register_callback("on_pos_change", self._on_pos_change)
+            # Register engine callback to push pause/resume state changes to D-Bus
             engine.register_callback("on_pause_change", self._on_pause_change)
 
             self._started = True
@@ -175,7 +172,7 @@ class MprisService:
         """Push updated metadata and playback status to D-Bus clients.
 
         Call this after an explicit track selection so widgets and playerctl
-        refresh immediately rather than waiting for the next on_pos_change.
+        refresh immediately.
         """
         if self._server and self._server.events:
             try:
@@ -194,15 +191,6 @@ class MprisService:
         log("MprisService: stopped")
 
     # ---- Engine callback handlers (called from mpv C thread) -----------------
-
-    def _on_pos_change(self, _index: int) -> None:
-        """Push new metadata and playback state when the playlist position changes."""
-        if self._server and self._server.events:
-            try:
-                self._server.events.on_title()
-                self._server.events.on_playpause()
-            except Exception as e:
-                log(f"MprisService._on_pos_change: {e}")
 
     def _on_pause_change(self, _paused: bool) -> None:
         """Push playback status change when mpv pauses or resumes."""
