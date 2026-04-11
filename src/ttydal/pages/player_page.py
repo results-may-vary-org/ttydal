@@ -108,12 +108,13 @@ class PlayerPage(Container):
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)
-            if tracks_list.current_item_id:
+            playing_item_id = tracks_list._active_playlist_item_id or tracks_list.current_item_id
+            if playing_item_id:
                 log(
-                    f"  - Updating album indicator for item: {tracks_list.current_item_id}"
+                    f"  - Updating album indicator for item: {playing_item_id}"
                 )
                 albums_list = self.query_one(AlbumsList)
-                albums_list.set_playing_item(tracks_list.current_item_id)
+                albums_list.set_playing_item(playing_item_id)
 
             # Show notification if quality fallback was applied
             if result.fallback_applied:
