@@ -3,18 +3,21 @@
 Runs a GLib event loop in a background daemon thread. The adapter reads
 live state from MpvPlaybackEngine; incoming D-Bus commands (play/pause/
 next/prev/seek) are forwarded to the engine or navigation callbacks.
-Emits D-Bus property changes when mpv fires its pause and playlist-pos
+Emits D-Bus property changes when mpv fires its pause and time-pos
 callbacks.
 
 Architecture
 ------------
 - GLib daemon thread: owns the D-Bus session (server.loop(background=True))
-- mpv C thread: fires on_pause_change callbacks
-- Textual/asyncio thread: owns UI — never called from here
+- mpv C thread: fires on_pause_change / on_time_pos_change callbacks
+- Textual/asyncio thread: owns UI — calls notify_track_changed()
 
-Thread safety: mpv callbacks call events.on_title() / events.on_playpause()
-directly. GLib handles cross-thread signalling internally. D-Bus command
-callbacks (play/pause/next/prev) write mpv properties — safe from any thread.
+Signal emission
+---------------
+Server(events=None) by default — the library's EventAdapter is never wired.
+We bypass it entirely and call dbus_emit_changes(server.player, props)
+directly. g_dbus_connection_emit_signal() is thread-safe, so calling from
+the mpv C thread or the Textual asyncio thread is safe.
 """
 
 from __future__ import annotations
@@ -36,6 +39,7 @@ class MprisService:
         self._server = None
         self._adapter = None
         self._started = False
+        self._pending_playstate = False  # set by notify_track_changed, cleared on first position tick
 
     def start(self) -> None:
         """Start the GLib D-Bus loop in a background daemon thread.
@@ -63,7 +67,7 @@ class MprisService:
                 # ---- State reads (called from GLib thread) -------------------
 
                 def get_playstate(self) -> PlayState:
-                    if engine.mpv is None or engine.mpv.time_pos is None:
+                    if engine.mpv is None or engine.mpv.idle_active:
                         return PlayState.STOPPED
                     return PlayState.PAUSED if engine.mpv.pause else PlayState.PLAYING
 
@@ -140,12 +144,22 @@ class MprisService:
                 def get_desktop_entry(self) -> str:
                     return ""
 
+            # mpris_server 0.9.6 bug: METADATA_TYPES maps TRACK_ID to DbusTypes.STRING ('s')
+            # but the MPRIS2 spec requires type 'o' (D-Bus object path). KDE Plasma validates
+            # this type strictly and silently drops the entire Metadata dict when it's wrong,
+            # causing title/artist/cover/position to all disappear. Remove this patch when
+            # the library fixes it (track: https://github.com/alexdelorenzo/mpris_server).
+            from mpris_server.mpris.metadata import METADATA_TYPES, MetadataEntries
+            from mpris_server.base import DbusTypes
+            METADATA_TYPES[MetadataEntries.TRACK_ID] = DbusTypes.OBJ
+
             self._adapter = TidalMprisAdapter()
             self._server = Server(name="ttydal", adapter=self._adapter)
             self._server.loop(background=True)
 
-            # Register engine callback to push pause/resume state changes to D-Bus
+            # Register engine callbacks to push state changes to D-Bus
             engine.register_callback("on_pause_change", self._on_pause_change)
+            engine.register_callback("on_time_pos_change", self._on_time_pos_change)
 
             self._started = True
             log("MprisService: started, registered on D-Bus as 'ttydal'")
@@ -172,12 +186,20 @@ class MprisService:
         """Push updated metadata and playback status to D-Bus clients.
 
         Call this after an explicit track selection so widgets and playerctl
-        refresh immediately.
+        refresh immediately. Sets _pending_playstate so that _on_time_pos_change
+        will re-emit PlaybackStatus once mpv confirms it is actually playing —
+        this guards against the race where idle_active hasn't settled yet when
+        this method runs (mpv processes loadfile asynchronously).
+
+        Calls dbus_emit_changes() directly — Server.events is None by default
+        and we never wire an EventAdapter, so events.on_*() would be a no-op.
         """
-        if self._server and self._server.events:
+        self._pending_playstate = True
+        if self._server:
+            from mpris_server.base import dbus_emit_changes, ON_TITLE_PROPS, ON_PLAYPAUSE_PROPS
             try:
-                self._server.events.on_title()
-                self._server.events.on_playpause()
+                dbus_emit_changes(self._server.player, ON_TITLE_PROPS)
+                dbus_emit_changes(self._server.player, ON_PLAYPAUSE_PROPS)
             except Exception as e:
                 log(f"MprisService.notify_track_changed: {e}")
 
@@ -194,8 +216,29 @@ class MprisService:
 
     def _on_pause_change(self, _paused: bool) -> None:
         """Push playback status change when mpv pauses or resumes."""
-        if self._server and self._server.events:
+        if self._server:
+            from mpris_server.base import dbus_emit_changes, ON_PLAYPAUSE_PROPS
             try:
-                self._server.events.on_playpause()
+                dbus_emit_changes(self._server.player, ON_PLAYPAUSE_PROPS)
             except Exception as e:
                 log(f"MprisService._on_pause_change: {e}")
+
+    def _on_time_pos_change(self, _pos: float) -> None:
+        """Re-push Metadata + PlaybackStatus=Playing once mpv confirms it is playing.
+
+        Guards against two problems:
+        1. Race condition in notify_track_changed(): mpv processes loadfile
+           asynchronously, so idle_active may still be True when it runs,
+           emitting PlaybackStatus=Stopped before mpv transitions to Playing.
+        2. KDE Plasma may clear its Metadata cache when it sees PlaybackStatus=Stopped,
+           so we must re-send Metadata alongside the corrected PlaybackStatus=Playing.
+        The flag is cleared immediately to avoid re-emitting on every position tick.
+        """
+        if self._pending_playstate and self._server:
+            self._pending_playstate = False
+            from mpris_server.base import dbus_emit_changes, ON_TITLE_PROPS, ON_PLAYPAUSE_PROPS
+            try:
+                dbus_emit_changes(self._server.player, ON_TITLE_PROPS)     # re-send Metadata
+                dbus_emit_changes(self._server.player, ON_PLAYPAUSE_PROPS)  # idle_active=False → Playing
+            except Exception as e:
+                log(f"MprisService._on_time_pos_change: {e}")
