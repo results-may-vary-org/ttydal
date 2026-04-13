@@ -33,6 +33,8 @@ import asyncio
 from ttydal.exceptions import TidalServiceError, DataFetchError
 from ttydal.logger import log
 from ttydal.services.image_cache import ImageCache
+
+COVER_IMAGE_SIZE = 320
 from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.services.playback_service import PlaybackService, PlaybackResult
 from ttydal.services.tidal_client import TidalClient
@@ -104,7 +106,7 @@ class AlbumsService:
             for playlist in playlists:
                 # Get cover art URL (80x80 for list display)
                 try:
-                    cover_url = playlist.image(80)
+                    cover_url = playlist.image(COVER_IMAGE_SIZE)
                 except Exception:
                     cover_url = None
                 result.append(
@@ -133,7 +135,7 @@ class AlbumsService:
             for album in albums:
                 # Get cover art URL (80x80 for list display)
                 try:
-                    cover_url = album.image(80)
+                    cover_url = album.image(COVER_IMAGE_SIZE)
                 except Exception:
                     cover_url = None
                 result.append(
@@ -174,7 +176,7 @@ class TracksService:
         """
         # Get cover art URL from track's album (80x80 for list, can request larger for player)
         try:
-            cover_url = track.album.image(80)
+            cover_url = track.album.image(COVER_IMAGE_SIZE)
         except Exception:
             cover_url = None
 
@@ -258,4 +260,5 @@ __all__ = [
     "MpvPlaybackEngine",
     "TidalClient",
     "ImageCache",
+    "COVER_IMAGE_SIZE",
 ]

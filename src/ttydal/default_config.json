@@ -18,6 +18,7 @@
       "focus_tracks": "t",
       "open_search": "/",
       "open_cache_info": "i",
+      "open_debug_info": "d",
       "toggle_play": "space",
       "toggle_auto_play": "n",
       "toggle_shuffle": "s",
@@ -44,6 +45,9 @@
       "play_track": "space"
     },
     "cache_modal": {
+      "close_modal": "escape"
+    },
+    "playlist_info_modal": {
       "close_modal": "escape"
     },
     "login_modal": {

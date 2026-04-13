@@ -41,6 +41,7 @@ class MpvPlaybackEngine:
         self._callbacks: dict[str, list[Callable]] = {
             "on_track_end": [],
             "on_time_pos_change": [],
+            "on_pause_change": [],     # (paused: bool) -> None
         }
         self._initialized = True
         log("MpvPlaybackEngine.__init__() completed")
@@ -60,6 +61,13 @@ class MpvPlaybackEngine:
             """Observe playback time position."""
             if value is not None:
                 for callback in self._callbacks["on_time_pos_change"]:
+                    callback(value)
+
+        @self.mpv.property_observer("pause")
+        def pause_observer(_name, value):
+            """Fire on_pause_change callbacks when mpv pauses or resumes."""
+            if value is not None:
+                for callback in self._callbacks["on_pause_change"]:
                     callback(value)
 
         @self.mpv.event_callback("end-file")

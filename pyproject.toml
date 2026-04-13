@@ -1,6 +1,6 @@
 [project]
 name = "ttydal"
-version = "1.4.0"
+version = "1.5.0"
 description = "Tidal in your terminal!"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
@@ -14,6 +14,7 @@ dependencies = [
     "cachetools>=6.2.4",
     "fuzzysearch>=0.8.1",
     "keyring>=25.7.0",
+    "mpris-server>=0.9.6",
     "mpv>=1.0.8",
     "platformdirs>=4.5.1",
     "pydantic>=2.12.5",
@@ -34,7 +35,7 @@ Issues = "https://github.com/results-may-vary-org/ttydal/issues"
 ttydal = "ttydal:main"
 
 [build-system]
-requires = ["uv_build>=0.9.22,<0.10.0"]
+requires = ["uv_build>=0.9.22,<=0.11.6"]
 build-backend = "uv_build"
 
 [dependency-groups]

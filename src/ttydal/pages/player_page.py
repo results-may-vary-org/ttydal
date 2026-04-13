@@ -55,6 +55,17 @@ class PlayerPage(Container):
         player_bar = self.query_one(PlayerBar)
         player_bar.update_quality_display(self.config.quality)
 
+        from ttydal.services.mpris_service import MprisService
+
+        self.mpris_service = MprisService(self.player)
+        self.mpris_service.start()
+
+        tracks_list = self.query_one(TracksList)
+        self.mpris_service.set_navigation_callbacks(
+            on_next=tracks_list.play_next_track,
+            on_prev=tracks_list.play_previous_track,
+        )
+
     def on_albums_list_album_selected(self, event: AlbumsList.AlbumSelected) -> None:
         """Handle album or playlist selection.
 
@@ -92,6 +103,10 @@ class PlayerPage(Container):
         )
 
         if result.success:
+            # Notify MPRIS so playerctl / system widgets update immediately
+            if hasattr(self, "mpris_service"):
+                self.mpris_service.notify_track_changed()
+
             # Update player bar with actual stream quality and cover art
             player_bar = self.query_one(PlayerBar)
             player_bar.update_stream_quality(result.stream_metadata)
@@ -108,12 +123,13 @@ class PlayerPage(Container):
 
             # Update album list to show which album/playlist is currently playing
             tracks_list = self.query_one(TracksList)
-            if tracks_list.current_item_id:
+            playing_item_id = tracks_list._active_playlist_item_id or tracks_list.current_item_id
+            if playing_item_id:
                 log(
-                    f"  - Updating album indicator for item: {tracks_list.current_item_id}"
+                    f"  - Updating album indicator for item: {playing_item_id}"
                 )
                 albums_list = self.query_one(AlbumsList)
-                albums_list.set_playing_item(tracks_list.current_item_id)
+                albums_list.set_playing_item(playing_item_id)
 
             # Show notification if quality fallback was applied
             if result.fallback_applied:
