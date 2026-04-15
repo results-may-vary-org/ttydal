@@ -95,7 +95,11 @@ class TidalClient:
         Returns:
             True if logged in, False otherwise
         """
-        return self.session.check_login()
+        try:
+            return self.session.check_login()
+        except Exception as e:
+            log(f"TidalClient.is_logged_in() failed (network change?): {e}")
+            return False
 
     def login(self) -> tuple[str, str]:
         """Initiate login process.
@@ -103,7 +107,7 @@ class TidalClient:
         Returns:
             Tuple of (login_url, verification_code) for OAuth login
         """
-        login, future = self.session.login_oauth()
+        login, _ = self.session.login_oauth()
         return login.verification_uri_complete, login.user_code
 
     def complete_login(self) -> bool:
@@ -540,41 +544,3 @@ class TidalClient:
         log(f"  - Tried qualities: {error_info['tried_qualities']}")
         log("=" * 60)
         return None, None, error_info
-
-    def get_track_vibrant_color(self, track_id: str) -> str | None:
-        """Get the vibrant color for a track's album.
-
-        Makes a direct API call to get the track data which includes
-        album.vibrantColor that tidalapi doesn't expose.
-
-        Args:
-            track_id: The track ID
-
-        Returns:
-            Hex color string (e.g., "#f2d869") or None if not available
-        """
-        log(f"API CALL: get_track_vibrant_color(track_id={track_id})")
-
-        if not self.is_logged_in():
-            log("  Response: Not logged in, returning None")
-            return None
-
-        try:
-            # Use the session's request method to make a direct API call
-            response = self.session.request.request("GET", f"tracks/{track_id}")
-
-            if response and response.ok:
-                data = response.json()
-                album_data = data.get("album", {})
-                vibrant_color = album_data.get("vibrantColor")
-                log(f"  Response: vibrantColor = {vibrant_color}")
-                return vibrant_color
-            else:
-                log(
-                    f"  Response: API call failed - {response.status_code if response else 'No response'}"
-                )
-                return None
-
-        except Exception as e:
-            log(f"  Response: ERROR - {e}")
-            return None

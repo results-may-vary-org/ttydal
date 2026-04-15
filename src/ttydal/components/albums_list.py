@@ -28,6 +28,7 @@ class AlbumsList(Container):
 
     BINDINGS = [
         Binding(_k("refresh_albums"), "refresh_albums", "Refresh", show=True),
+        Binding(_k("show_art"), "show_art", "Art", show=True),
         Binding(_nav("cursor_down"), "cursor_down", "Down", show=False),
         Binding(_nav("cursor_up"), "cursor_up", "Up", show=False),
         Binding(_nav("cursor_right"), "focus_tracks", "Tracks", show=False),
@@ -415,6 +416,19 @@ class AlbumsList(Container):
             list_view.focus()
         except Exception:
             pass
+
+    def action_show_art(self) -> None:
+        """Open cover art modal for the currently highlighted album/playlist."""
+        list_view = self.query_one("#albums-listview", ListView)
+        index = list_view.index
+        if index is None or index >= len(self.albums):
+            return
+        cover_url = self.albums[index].get("cover_url")
+        if not cover_url:
+            self.app.notify("No cover art available", timeout=2)
+            return
+        from ttydal.components.cover_art_modal import CoverArtModal
+        self.app.push_screen(CoverArtModal(cover_url))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle album or playlist selection.

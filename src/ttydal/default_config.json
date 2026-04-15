@@ -33,11 +33,13 @@
       "toggle_playback": "space"
     },
     "albums_list": {
-      "refresh_albums": "r"
+      "refresh_albums": "r",
+      "show_art": "a"
     },
     "tracks_list": {
       "play_selected_track": "enter",
-      "refresh_tracks": "r"
+      "refresh_tracks": "r",
+      "show_art": "a"
     },
     "search_modal": {
       "close_modal": "escape",

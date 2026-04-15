@@ -1,5 +1,7 @@
 """Player page showing albums, tracks and playback controls."""
 
+import asyncio
+
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal
@@ -75,7 +77,7 @@ class PlayerPage(Container):
         tracks_list = self.query_one(TracksList)
         tracks_list.load_tracks(event.item_id, event.item_name, event.item_type)
 
-    def on_tracks_list_track_selected(self, event: TracksList.TrackSelected) -> None:
+    async def on_tracks_list_track_selected(self, event: TracksList.TrackSelected) -> None:
         """Handle track selection and start playback.
 
         Args:
@@ -91,16 +93,44 @@ class PlayerPage(Container):
         if event.prefetched_url:
             log("  - Has pre-fetched URL: Yes")
 
-        # Use PlaybackService to handle playback
-        result = self.playback_service.play_track(
-            event.track_id,
-            event.track_info,
-            self.config.quality,
-            fetch_vibrant_color=self.config.vibrant_color,
-            prefetched_url=event.prefetched_url,
-            prefetched_metadata=event.prefetched_metadata,
-            prefetched_error_info=event.prefetched_error_info,
-        )
+        if event.prefetched_url:
+            # Fast path: URL already available, no HTTP needed.
+            result = self.playback_service.play_track(
+                event.track_id,
+                event.track_info,
+                self.config.quality,
+                fetch_vibrant_color=self.config.vibrant_color,
+                prefetched_url=event.prefetched_url,
+                prefetched_metadata=event.prefetched_metadata,
+                prefetched_error_info=event.prefetched_error_info,
+            )
+        else:
+            # Slow path: must fetch the URL from Tidal — blocking HTTP call.
+            # Run in a thread so the event loop stays responsive if the network is down.
+            log("  - No pre-fetched URL, fetching from Tidal (in thread)…")
+            try:
+                result = await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(
+                        None,
+                        lambda: self.playback_service.play_track(
+                            event.track_id,
+                            event.track_info,
+                            self.config.quality,
+                            fetch_vibrant_color=self.config.vibrant_color,
+                        ),
+                    ),
+                    timeout=15.0,
+                )
+            except asyncio.TimeoutError:
+                track_name = event.track_info.get("name", "Track")
+                log(f"  - play_track timed out for '{track_name}'")
+                self.app.notify(
+                    f"Failed to load '{track_name}': network timeout",
+                    severity="error",
+                    timeout=10,
+                )
+                log("=" * 80)
+                return
 
         if result.success:
             # Notify MPRIS so playerctl / system widgets update immediately
@@ -145,11 +175,19 @@ class PlayerPage(Container):
         else:
             log("  - Failed to get track URL or metadata")
 
-            # Show error notification to user
             track_name = event.track_info.get("name", "Track")
             error_msg = result.error_message or "Unknown error"
-            tried_qualities = result.tried_qualities or []
 
+            # "Not logged in" means is_logged_in() failed — the network is down, not a
+            # real logout. Start the retry loop instead of showing a hard error.
+            if result.error_message == "Not logged in":
+                log("  - Network down (not logged in) — scheduling playback retry…")
+                tracks_list = self.query_one(TracksList)
+                tracks_list.start_playback_retry(event.track_id, event.track_info)
+                log("=" * 80)
+                return
+
+            tried_qualities = result.tried_qualities or []
             if tried_qualities:
                 qualities_str = ", ".join([q.upper() for q in tried_qualities])
                 notification_msg = f"Failed to play '{track_name}': {error_msg} (tried: {qualities_str})"

@@ -1,6 +1,8 @@
 """Player bar component showing current track and playback progress."""
 
 import re
+import time
+from datetime import datetime
 
 from textual.app import ComposeResult
 from textual.containers import Center, Container, Horizontal, Middle
@@ -11,6 +13,12 @@ from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
 from ttydal.config import ConfigManager
 from ttydal.services.image_cache import ImageCache
 from ttydal.logger import log
+
+
+class CoverArtArea(Container):
+    """Cover art container that accepts Tab focus for keyboard navigation."""
+
+    can_focus = True
 
 
 class PlayerBar(Container):
@@ -33,10 +41,15 @@ class PlayerBar(Container):
     }
 
     PlayerBar #cover-art-container {
-        width: 10;
-        height: 100%;
-        min-width: 10;
-        max-width: 10;
+        width: 8;
+        height: 5;
+        min-width: 8;
+        max-width: 8;
+        border: solid $accent-darken-2;
+    }
+
+    PlayerBar #cover-art-container:focus {
+        border: solid $accent;
     }
 
     PlayerBar #cover-art-container Image {
@@ -45,8 +58,8 @@ class PlayerBar(Container):
     }
 
     PlayerBar #cover-placeholder {
-        width: 10;
-        height: 100%;
+        width: 8;
+        height: 5;
         content-align: center middle;
         color: $text-muted;
         hatch: cross $primary 30%;
@@ -72,12 +85,15 @@ class PlayerBar(Container):
         self._current_cover_url: str | None = None
         self._image_widget: Image | None = None
         self._vibrant_color: str | None = None
-        self._narrow_mode: bool = False
+        self._status_visible: bool = False
+        self._reconnecting: bool = False
+        self._reconnected_at: float | None = None
+        self._reconnected_time_str: str | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the player bar UI."""
         with Horizontal(id="player-content"):
-            with Container(id="cover-art-container"):
+            with CoverArtArea(id="cover-art-container"):
                 yield Static("[No Art]", id="cover-placeholder")
             with Container(id="info-container"):
                 with Center():
@@ -94,6 +110,24 @@ class PlayerBar(Container):
     def on_mount(self) -> None:
         """Set up update interval when mounted."""
         self.set_interval(0.5, self.update_display)
+
+    def on_click(self, event) -> None:
+        """Open cover art modal when the cover art area is clicked."""
+        # Cover art occupies the leftmost 8 columns of the player bar
+        if event.x < 8 and self._current_cover_url:
+            from ttydal.components.cover_art_modal import CoverArtModal
+            self.app.push_screen(CoverArtModal(self._current_cover_url))
+
+    def on_key(self, event) -> None:
+        """Open cover art modal when Enter is pressed on the focused cover art area."""
+        if event.key == "enter":
+            try:
+                if self.query_one("#cover-art-container").has_focus and self._current_cover_url:
+                    from ttydal.components.cover_art_modal import CoverArtModal
+                    self.app.push_screen(CoverArtModal(self._current_cover_url))
+                    event.stop()
+            except Exception:
+                pass
 
     def _format_time(self, seconds: float) -> str:
         """Format time in seconds to MM:SS.
@@ -199,14 +233,8 @@ class PlayerBar(Container):
         status_label = self.query_one("#status-info", Label)
 
         # Available width for the info container (terminal width minus cover art)
-        info_width = max(0, self.size.width - 12)
-
-        # Responsive layout: narrow mode stacks time+quality and status on separate lines
+        info_width = max(0, self.size.width - 10)
         is_narrow = info_width < 55
-        if is_narrow != self._narrow_mode:
-            self._narrow_mode = is_narrow
-            status_label.display = is_narrow
-            self.styles.height = 6 if is_narrow else 5
 
         if track:
             track_name = track.get("name", "Unknown")
@@ -243,6 +271,21 @@ class PlayerBar(Container):
                 time_label, status_label, "0:00 / 0:00", info_width, is_narrow
             )
 
+    def set_reconnecting(self, state: bool) -> None:
+        """Show or hide the reconnecting indicator.
+
+        Args:
+            state: True while retrying the stream, False when resolved
+        """
+        self._reconnecting = state
+
+    def set_reconnected(self) -> None:
+        """Mark recovery as complete — show a 30s green 'reconnected HH:MM' notice."""
+        self._reconnecting = False
+        self._reconnected_at = time.monotonic()
+        self._reconnected_time_str = datetime.now().strftime("%H:%M")
+        log(f"PlayerBar: Network recovered at {self._reconnected_time_str}")
+
     def _update_info_labels(
         self,
         time_label: Label,
@@ -251,23 +294,48 @@ class PlayerBar(Container):
         info_width: int,
         is_narrow: bool,
     ) -> None:
-        """Render time/quality/status into the info labels based on available width."""
-        status_str = self._format_status_indicators()
+        """Render time/quality/status/network state into the info labels."""
+        # --- Network status row (takes priority over shuffle/auto indicators) ---
+        network_notice = ""
+        if self._reconnecting:
+            network_notice = "[yellow]⟳ Reconnecting…[/yellow]"
+        elif self._reconnected_at is not None:
+            if time.monotonic() - self._reconnected_at < 30:
+                network_notice = (
+                    f"[green]⏺ reconnected {self._reconnected_time_str}[/green]"
+                )
+            else:
+                self._reconnected_at = None
+                self._reconnected_time_str = None
 
-        if is_narrow:
-            # Stacked: time + compact quality on line 1, full status on line 2
-            time_label.update(f"{time_str}  |  {self._format_quality_tiny()}")
-            status_label.update(status_str)
-        elif info_width >= 65:
-            # Full single line
-            time_label.update(
-                f"{time_str}  |  {self._format_quality()}  |  {status_str}"
-            )
+        # Status row content and visibility
+        if network_notice:
+            status_content = network_notice
+            show_status = True
+        elif is_narrow:
+            # Narrow mode: shuffle/auto indicators overflow onto a second line
+            status_content = self._format_status_indicators()
+            show_status = True
         else:
-            # Medium single line: shorter quality string
-            time_label.update(
-                f"{time_str}  |  {self._format_quality_short()}  |  {status_str}"
-            )
+            status_content = ""
+            show_status = False
+
+        # Only touch display + height when the visibility state actually changes
+        if show_status != self._status_visible:
+            self._status_visible = show_status
+            status_label.display = show_status
+            self.styles.height = 6 if show_status else 5
+
+        status_label.update(status_content)
+
+        # --- Time / quality row (always shows shuffle/auto inline when wide) ---
+        status_str = self._format_status_indicators()
+        if is_narrow:
+            time_label.update(f"{time_str}  |  {self._format_quality_tiny()}")
+        elif info_width >= 65:
+            time_label.update(f"{time_str}  |  {self._format_quality()}  |  {status_str}")
+        else:
+            time_label.update(f"{time_str}  |  {self._format_quality_short()}  |  {status_str}")
 
     def update_quality_display(self, quality: str) -> None:
         """Update quality display.

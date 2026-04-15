@@ -38,10 +38,12 @@ class MpvPlaybackEngine:
         log("  - MPV will be lazy-loaded on first use")
         self.mpv = None
         self._current_track = None
+        self._last_time_pos: float = 0.0  # Last known position for stream recovery
         self._callbacks: dict[str, list[Callable]] = {
             "on_track_end": [],
             "on_time_pos_change": [],
             "on_pause_change": [],     # (paused: bool) -> None
+            "on_stream_error": [],     # () -> None  fired on network/stream failure
         }
         self._initialized = True
         log("MpvPlaybackEngine.__init__() completed")
@@ -60,6 +62,7 @@ class MpvPlaybackEngine:
         def time_observer(_name, value):
             """Observe playback time position."""
             if value is not None:
+                self._last_time_pos = value  # Track for stream recovery
                 for callback in self._callbacks["on_time_pos_change"]:
                     callback(value)
 
@@ -90,7 +93,12 @@ class MpvPlaybackEngine:
 
             if reason is EndFileReason.EOF:
                 log("  - Track finished naturally (EOF) → calling auto-play callbacks")
+                self._last_time_pos = 0.0  # Reset on clean end
                 for callback in self._callbacks["on_track_end"]:
+                    callback()
+            elif reason is EndFileReason.ERROR:
+                log("  - Stream error (network loss?) → calling stream error callbacks")
+                for callback in self._callbacks["on_stream_error"]:
                     callback()
             else:
                 log(f"  - Track ended with reason {reason.name} → skipping auto-play")
@@ -181,16 +189,17 @@ class MpvPlaybackEngine:
             return
         self.mpv.stop()
 
-    def seek(self, seconds: float) -> None:
-        """Seek relative to current position.
+    def seek(self, seconds: float, reference: str = "relative") -> None:
+        """Seek playback.
 
         Args:
-            seconds: Number of seconds to seek (positive or negative)
+            seconds: Seconds to seek (relative) or target position (absolute)
+            reference: "relative" (default) or "absolute"
         """
         if self.mpv is None:
             return
         try:
-            self.mpv.seek(seconds, reference="relative")
+            self.mpv.seek(seconds, reference=reference)
         except Exception:
             pass  # Ignore seek errors
 
@@ -223,6 +232,17 @@ class MpvPlaybackEngine:
         if self.mpv is None:
             return 0.0
         return self.mpv.duration or 0.0
+
+    def get_last_time_pos(self) -> float:
+        """Get last known playback position in seconds.
+
+        Unlike get_time_pos(), this retains the value even after the stream
+        stops, which is useful for resuming after a network interruption.
+
+        Returns:
+            Last known position in seconds, or 0.0 if never played
+        """
+        return self._last_time_pos
 
     def get_current_track(self) -> dict | None:
         """Get current track information.

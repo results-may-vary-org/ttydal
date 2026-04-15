@@ -1,5 +1,6 @@
 """Tracks list component for browsing and playing tracks."""
 
+import asyncio
 import random
 
 from textual.app import ComposeResult
@@ -29,6 +30,7 @@ class TracksList(Container):
     BINDINGS = [
         Binding(_k("play_selected_track"), "play_selected_track", "Play Track", show=True),
         Binding(_k("refresh_tracks"), "refresh_tracks", "Refresh", show=True),
+        Binding(_k("show_art"), "show_art", "Art", show=True),
         Binding(_nav("cursor_down"), "cursor_down", "Down", show=False),
         Binding(_nav("cursor_up"), "cursor_up", "Up", show=False),
         Binding(_nav("cursor_left"), "focus_albums", "Albums", show=False),
@@ -122,6 +124,8 @@ class TracksList(Container):
         self._prefetched_metadata: dict | None = None
         self._prefetched_error_info: dict | None = None
         self._prefetch_in_progress: bool = False
+        # Stream recovery state
+        self._stream_recovery_in_progress: bool = False
 
     def compose(self) -> ComposeResult:
         """Compose the tracks list UI."""
@@ -142,8 +146,9 @@ class TracksList(Container):
             player = MpvPlaybackEngine()
             player.register_callback("on_track_end", self._on_track_end)
             player.register_callback("on_time_pos_change", self._on_time_pos_change)
+            player.register_callback("on_stream_error", self._on_stream_error)
             self._track_end_callback_registered = True
-            log("TracksList: Registered track end and time position callbacks")
+            log("TracksList: Registered track end, time position, and stream error callbacks")
 
     def _on_track_end(self) -> None:
         """Handle track end - play next track if auto-play is enabled."""
@@ -176,14 +181,12 @@ class TracksList(Container):
         self.current_playing_index = next_index
         self._playing_item_id = self._active_playlist_item_id
 
-        # Update UI (only scroll the list if we're viewing the playing album)
+        # DOM mutations must run on the Textual event-loop thread, not on the mpv
+        # callback thread that calls _on_track_end.
         try:
-            if self.current_item_id == self._active_playlist_item_id:
-                list_view = self.query_one("#tracks-listview", ListView)
-                list_view.index = next_index
-            self._update_track_indicators()
+            self.app.call_from_thread(self._update_ui_after_track_end, next_index)
         except Exception as e:
-            log(f"  - UI update error: {e}")
+            log(f"  - Error scheduling UI update: {e}")
 
         # Check if we have pre-fetched data for this track
         prefetched_url = None
@@ -211,6 +214,19 @@ class TracksList(Container):
             )
         )
         log("=" * 80)
+
+    def _update_ui_after_track_end(self, next_index: int) -> None:
+        """Update list cursor and indicators after auto-play advances.
+
+        Must be called on the Textual event-loop thread (via call_from_thread).
+        """
+        try:
+            if self.current_item_id == self._active_playlist_item_id:
+                list_view = self.query_one("#tracks-listview", ListView)
+                list_view.index = next_index
+            self._update_track_indicators()
+        except Exception as e:
+            log(f"  - UI update error: {e}")
 
     def _on_time_pos_change(self, time_pos: float) -> None:
         """Handle playback time position changes for pre-fetching next track.
@@ -246,12 +262,19 @@ class TracksList(Container):
         # Check if we're within pre-fetch window
         time_remaining = duration - time_pos
         if time_remaining <= PREFETCH_SECONDS_BEFORE_END and time_remaining > 0:
-            # Start pre-fetching in background
+            # run_worker must be called from the Textual event-loop thread, not from
+            # the mpv callback thread that calls _on_time_pos_change.
             self._prefetch_in_progress = True
             log(
                 f"TracksList: Starting pre-fetch ({time_remaining:.1f}s before track end)"
             )
-            self.run_worker(self._prefetch_next_track(config.quality), exclusive=False)
+            try:
+                self.app.call_from_thread(
+                    self._start_prefetch_worker, config.quality
+                )
+            except Exception as e:
+                log(f"TracksList: Error scheduling pre-fetch: {e}")
+                self._prefetch_in_progress = False
 
     async def _prefetch_next_track(self, quality: str) -> None:
         """Pre-fetch the next track URL in the background.
@@ -260,20 +283,27 @@ class TracksList(Container):
             quality: Quality setting for the track
         """
         try:
-            # Get next track index (respects shuffle mode)
             next_index = self._get_next_track_index()
             next_track = self._active_playlist[next_index]
 
             log(f"TracksList: Pre-fetching URL for: {next_track['name']}")
 
-            # Fetch URL from Tidal
             tidal_client = TidalClient()
-            track_url, stream_metadata, error_info = tidal_client.get_track_url(
-                next_track["id"], quality
-            )
+            try:
+                # Offload to a thread — get_track_url is a blocking HTTP call.
+                # Enforce a timeout so a dead network can't freeze the event loop.
+                track_url, stream_metadata, error_info = await asyncio.wait_for(
+                    asyncio.get_running_loop().run_in_executor(
+                        None,
+                        lambda: tidal_client.get_track_url(next_track["id"], quality),
+                    ),
+                    timeout=12.0,
+                )
+            except asyncio.TimeoutError:
+                log(f"TracksList: Pre-fetch timed out for: {next_track['name']}")
+                return
 
             if track_url:
-                # Store pre-fetched data
                 self._prefetched_track_id = next_track["id"]
                 self._prefetched_url = track_url
                 self._prefetched_metadata = stream_metadata
@@ -286,6 +316,10 @@ class TracksList(Container):
         finally:
             self._prefetch_in_progress = False
 
+    def _start_prefetch_worker(self, quality: str) -> None:
+        """Launch the pre-fetch worker (must run on the Textual event-loop thread)."""
+        self.run_worker(self._prefetch_next_track(quality), exclusive=False)
+
     def _clear_prefetch_state(self) -> None:
         """Clear the pre-fetch state."""
         self._prefetched_track_id = None
@@ -293,6 +327,227 @@ class TracksList(Container):
         self._prefetched_metadata = None
         self._prefetched_error_info = None
         self._prefetch_in_progress = False
+
+    # ------------------------------------------------------------------
+    # Stream error recovery (transparent VPN / network change handling)
+    # ------------------------------------------------------------------
+
+    def _on_stream_error(self) -> None:
+        """Called from the mpv callback thread on stream error (e.g. VPN drop).
+
+        Saves the playback position and schedules a recovery worker that will
+        silently retry until the network is restored, then resumes the track.
+        """
+        if self._stream_recovery_in_progress:
+            return
+
+        from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
+
+        player = MpvPlaybackEngine()
+        track = player.get_current_track()
+        if not track:
+            return
+
+        resume_pos = player.get_last_time_pos()
+        log(
+            f"TracksList: Stream error — scheduling recovery for "
+            f"'{track.get('name')}' at {resume_pos:.1f}s"
+        )
+        self._stream_recovery_in_progress = True
+
+        try:
+            self.app.call_from_thread(
+                self._start_stream_recovery, track, resume_pos
+            )
+        except Exception as e:
+            log(f"TracksList: Error scheduling stream recovery: {e}")
+            self._stream_recovery_in_progress = False
+
+    def _start_stream_recovery(self, track: dict, resume_pos: float) -> None:
+        """Launch the stream recovery worker (must run on the Textual event-loop thread)."""
+        from ttydal.components.player_bar import PlayerBar
+
+        try:
+            player_bar = self.app.query_one(PlayerBar)
+            player_bar.set_reconnecting(True)
+        except Exception:
+            pass
+
+        self.run_worker(
+            self._recover_stream(track, resume_pos),
+            exclusive=False,
+        )
+
+    async def _recover_stream(self, track: dict, resume_pos: float) -> None:
+        """Retry fetching a stream URL until the network comes back.
+
+        Runs every 5 s for the first attempt, then every 10 s for up to ~3 minutes.
+        Once a URL is obtained the track is resumed from the saved position.
+        """
+        from ttydal.config import ConfigManager
+        from ttydal.services.mpv_playback_engine import MpvPlaybackEngine
+        from ttydal.components.player_bar import PlayerBar
+
+        config = ConfigManager()
+        tidal = TidalClient()
+
+        def _get_player_bar():
+            try:
+                return self.app.query_one(PlayerBar)
+            except Exception:
+                return None
+
+        try:
+            for attempt in range(18):  # 5 s + 17 × 10 s ≈ 3 min total
+                await asyncio.sleep(5 if attempt == 0 else 10)
+
+                player = MpvPlaybackEngine()
+
+                # Abort if the user manually started something else
+                if player.is_playing():
+                    log("TracksList: Recovery aborted — playback already active")
+                    return
+
+                log(f"TracksList: Recovery attempt {attempt + 1}…")
+                try:
+                    # Offload to a thread — get_track_url is a blocking HTTP call.
+                    # Enforce a timeout so a dead network can't freeze the event loop.
+                    track_url, stream_metadata, _ = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            None,
+                            lambda: tidal.get_track_url(track["id"], config.quality),
+                        ),
+                        timeout=12.0,
+                    )
+                except asyncio.TimeoutError:
+                    log(f"TracksList: Recovery attempt {attempt + 1} timed out, retrying…")
+                    continue
+
+                if track_url:
+                    log(
+                        f"TracksList: Recovery succeeded — resuming at {resume_pos:.1f}s"
+                    )
+                    player.play(track_url, track)
+                    if resume_pos > 2:
+                        await asyncio.sleep(1.5)  # Wait for mpv to start buffering
+                        player.seek(resume_pos, reference="absolute")
+
+                    # Update the player bar: show green notice and refresh stream quality
+                    player_bar = _get_player_bar()
+                    if player_bar:
+                        player_bar.set_reconnected()
+                        if stream_metadata:
+                            player_bar.update_stream_quality(stream_metadata)
+                    return
+
+                log(f"TracksList: Recovery attempt {attempt + 1} failed, retrying…")
+
+            log("TracksList: Recovery failed after all attempts")
+        finally:
+            self._stream_recovery_in_progress = False
+            # Running inside an async worker (already on the event loop) — call directly.
+            player_bar = _get_player_bar()
+            if player_bar:
+                player_bar.set_reconnecting(False)
+
+    # ------------------------------------------------------------------
+    # Playback-start retry (WiFi reconnect when next track fails to load)
+    # ------------------------------------------------------------------
+
+    def start_playback_retry(self, track_id: str, track_info: dict) -> None:
+        """Retry starting a track that failed due to network loss.
+
+        Called from PlayerPage when play_track() fails with "Not logged in".
+        Must be called on the Textual event-loop thread.
+        """
+        if self._stream_recovery_in_progress:
+            log("TracksList: Playback retry skipped — recovery already in progress")
+            return
+
+        log(f"TracksList: Scheduling playback retry for '{track_info.get('name')}'")
+        self._stream_recovery_in_progress = True
+
+        from ttydal.components.player_bar import PlayerBar
+
+        try:
+            player_bar = self.app.query_one(PlayerBar)
+            player_bar.set_reconnecting(True)
+        except Exception:
+            pass
+
+        self.run_worker(
+            self._retry_track_start(track_id, track_info),
+            exclusive=False,
+        )
+
+    async def _retry_track_start(self, track_id: str, track_info: dict) -> None:
+        """Retry fetching and starting a track until the network comes back.
+
+        Runs every 5 s for the first attempt, then every 10 s for up to ~2.5 minutes
+        (15 attempts total). On success, posts TrackSelected with the fetched URL so
+        PlayerPage handles the full UI update (cover art, vibrant color, stream quality).
+        """
+        from ttydal.config import ConfigManager
+        from ttydal.components.player_bar import PlayerBar
+
+        config = ConfigManager()
+        tidal = TidalClient()
+
+        def _get_player_bar():
+            try:
+                return self.app.query_one(PlayerBar)
+            except Exception:
+                return None
+
+        try:
+            for attempt in range(15):  # 5 s + 14 × 10 s ≈ 2.5 min total
+                await asyncio.sleep(5 if attempt == 0 else 10)
+
+                log(f"TracksList: Playback retry attempt {attempt + 1}…")
+                try:
+                    track_url, stream_metadata, error_info = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            None,
+                            lambda: tidal.get_track_url(track_id, config.quality),
+                        ),
+                        timeout=12.0,
+                    )
+                except asyncio.TimeoutError:
+                    log(f"TracksList: Playback retry attempt {attempt + 1} timed out, retrying…")
+                    continue
+
+                if track_url:
+                    log(f"TracksList: Playback retry succeeded for '{track_info.get('name')}'")
+                    player_bar = _get_player_bar()
+                    if player_bar:
+                        player_bar.set_reconnected()
+                    # Post with prefetched data — PlayerPage fast path handles player.play()
+                    # and all PlayerBar updates (cover art, vibrant color, stream quality).
+                    self.post_message(
+                        self.TrackSelected(
+                            track_id,
+                            track_info,
+                            prefetched_url=track_url,
+                            prefetched_metadata=stream_metadata,
+                            prefetched_error_info=error_info,
+                        )
+                    )
+                    return
+
+                log(f"TracksList: Playback retry attempt {attempt + 1} failed, retrying…")
+
+            log(f"TracksList: Playback retry exhausted for '{track_info.get('name')}'")
+            self.app.notify(
+                f"Could not play '{track_info.get('name', 'Track')}': no network after retries",
+                severity="error",
+                timeout=10,
+            )
+        finally:
+            self._stream_recovery_in_progress = False
+            # Running inside an async worker (already on the event loop) — call directly.
+            player_bar = _get_player_bar()
+            if player_bar:
+                player_bar.set_reconnecting(False)
 
     def _generate_shuffle_order(self) -> None:
         """Generate a new random shuffle order for the active playlist."""
@@ -715,6 +970,19 @@ class TracksList(Container):
             list_view.focus()
         except Exception:
             pass
+
+    def action_show_art(self) -> None:
+        """Open cover art modal for the currently highlighted track."""
+        list_view = self.query_one("#tracks-listview", ListView)
+        index = list_view.index
+        if index is None or index >= len(self.tracks):
+            return
+        cover_url = self.tracks[index].get("cover_url")
+        if not cover_url:
+            self.app.notify("No cover art available", timeout=2)
+            return
+        from ttydal.components.cover_art_modal import CoverArtModal
+        self.app.push_screen(CoverArtModal(cover_url))
 
     def on_list_view_selected(self, event: ListView.Selected) -> None:
         """Handle track selection (Enter key or double-click).
