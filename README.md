@@ -22,7 +22,6 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Real-time stream quality verification showing actual bit depth and sample rate
 - Auto-play next track
 - Shuffle mode for randomized playback
-- Visual indicators showing currently playing track and source album/playlist
 - Playback controls with seeking support
 - Smart tracks caching for faster navigation and search
 - Player bar displaying track info, artist, album, playback time, and quality metrics
@@ -32,7 +31,9 @@ This project is heavily inspired by what [Maxteabag](https://github.com/Maxteaba
 - Cover art display in albums list, tracks list, and player bar
 - Image caching for cover art
 - Vibrant color mode - colorize player bar text with album's vibrant color
-- `new` Configurable keybindings - customize all keyboard shortcuts (see [KEYBINDINGS.md](docs/KEYBINDINGS.md))
+- Configurable keybindings - customize all keyboard shortcuts (see [KEYBINDINGS.md](docs/KEYBINDINGS.md))
+- `new` Auto-retry when network connection is lost
+- `new` Current track information is displayed on widget (via mvp/mpris-server)
 
 *warning: this video contain audio of music, mind your volume*
 
