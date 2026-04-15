@@ -108,29 +108,42 @@ class PlayerPage(Container):
             # Slow path: must fetch the URL from Tidal — blocking HTTP call.
             # Run in a thread so the event loop stays responsive if the network is down.
             log("  - No pre-fetched URL, fetching from Tidal (in thread)…")
+            player_bar = self.query_one(PlayerBar)
+            fetch_future = asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: self.playback_service.play_track(
+                    event.track_id,
+                    event.track_info,
+                    self.config.quality,
+                    fetch_vibrant_color=self.config.vibrant_color,
+                ),
+            )
+            indicator_shown = False
             try:
-                result = await asyncio.wait_for(
-                    asyncio.get_running_loop().run_in_executor(
-                        None,
-                        lambda: self.playback_service.play_track(
-                            event.track_id,
-                            event.track_info,
-                            self.config.quality,
-                            fetch_vibrant_color=self.config.vibrant_color,
-                        ),
-                    ),
-                    timeout=15.0,
-                )
+                # Fast check: if the fetch finishes within 3 s, no indicator needed.
+                result = await asyncio.wait_for(asyncio.shield(fetch_future), timeout=3.0)
             except asyncio.TimeoutError:
-                track_name = event.track_info.get("name", "Track")
-                log(f"  - play_track timed out for '{track_name}'")
-                self.app.notify(
-                    f"Failed to load '{track_name}': network timeout",
-                    severity="error",
-                    timeout=10,
-                )
-                log("=" * 80)
-                return
+                # Still waiting — likely a network hiccup. Show the reconnecting notice.
+                player_bar.set_reconnecting(True)
+                indicator_shown = True
+                try:
+                    result = await asyncio.wait_for(fetch_future, timeout=12.0)
+                except asyncio.TimeoutError:
+                    player_bar.set_reconnecting(False)
+                    track_name = event.track_info.get("name", "Track")
+                    log(f"  - play_track timed out for '{track_name}'")
+                    self.app.notify(
+                        f"Failed to load '{track_name}': network timeout",
+                        severity="error",
+                        timeout=10,
+                    )
+                    log("=" * 80)
+                    return
+            if indicator_shown:
+                if result.success:
+                    player_bar.set_reconnected()
+                else:
+                    player_bar.set_reconnecting(False)
 
         if result.success:
             # Notify MPRIS so playerctl / system widgets update immediately

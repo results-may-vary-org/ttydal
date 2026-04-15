@@ -258,12 +258,12 @@ class PlayerBar(Container):
 
             if duration > 0:
                 progress_bar.update(total=duration, progress=time_pos)
-                time_str = (
-                    f"{self._format_time(time_pos)} / {self._format_time(duration)}"
-                )
-                self._update_info_labels(
-                    time_label, status_label, time_str, info_width, is_narrow
-                )
+                time_str = f"{self._format_time(time_pos)} / {self._format_time(duration)}"
+            else:
+                time_str = "0:00 / 0:00"
+            self._update_info_labels(
+                time_label, status_label, time_str, info_width, is_narrow
+            )
         else:
             track_label.update("No track playing")
             progress_bar.update(total=100, progress=0)
@@ -278,13 +278,15 @@ class PlayerBar(Container):
             state: True while retrying the stream, False when resolved
         """
         self._reconnecting = state
+        self.update_display()
 
     def set_reconnected(self) -> None:
-        """Mark recovery as complete — show a 30s green 'reconnected HH:MM' notice."""
+        """Mark recovery as complete — show a 5s green 'reconnected HH:MM' notice."""
         self._reconnecting = False
         self._reconnected_at = time.monotonic()
         self._reconnected_time_str = datetime.now().strftime("%H:%M")
         log(f"PlayerBar: Network recovered at {self._reconnected_time_str}")
+        self.update_display()
 
     def _update_info_labels(
         self,
@@ -298,9 +300,14 @@ class PlayerBar(Container):
         # --- Network status row (takes priority over shuffle/auto indicators) ---
         network_notice = ""
         if self._reconnecting:
-            network_notice = "[yellow]⟳ Reconnecting…[/yellow]"
+            # Slow flash: bright for 0.75 s, dim for 0.75 s (1.5 s period)
+            bright = (time.monotonic() % 1.5) < 0.75
+            if bright:
+                network_notice = "[yellow]⟳ Reconnecting…[/yellow]"
+            else:
+                network_notice = "[dim yellow]⟳ Reconnecting…[/dim yellow]"
         elif self._reconnected_at is not None:
-            if time.monotonic() - self._reconnected_at < 30:
+            if time.monotonic() - self._reconnected_at < 5:
                 network_notice = (
                     f"[green]⏺ reconnected {self._reconnected_time_str}[/green]"
                 )
