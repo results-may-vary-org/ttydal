@@ -3,7 +3,7 @@
     <img alt="ttydal screenshot" src="assets/ttydalscreen.png"/>
   </a>
 </p>
-<h1 align="center">ttydal - Tidal in your termial!</h1>
+<h1 align="center">ttydal - Tidal in your terminal!</h1>
 
 <img alt="Static Badge" src="https://img.shields.io/badge/Still_maintained-Yes_%3A)-green">
 
